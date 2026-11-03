@@ -20,11 +20,12 @@ builder.Services.AddSingleton(paths);
 builder.Services.AddSingleton(_ => new Db(paths.Database));
 builder.Services.AddSingleton(sp =>
 {
-    // Obsidian Sync: open the vault after kb_* changes if Obsidian does not have it open. Disposed (and flushed) on exit.
-    var sync = new ObsidianSync();
-    var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ObsidianSync");
-    sync.Log += msg => log.LogWarning("{Message}", msg);
-    return sync;
+    // Google Drive: upload after kb_* changes, pull other devices' edits every 2 minutes. Disposed (flushed) on exit.
+    var drive = new TaskManager.GDrive.GDriveService(paths);
+    var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("GoogleDrive");
+    drive.Status += (_, msg) => log.LogWarning("{Message}", msg);
+    drive.StartPeriodic(TimeSpan.FromMinutes(2));
+    return drive;
 });
 builder.Services.AddSingleton<TaskService>();
 builder.Services
@@ -39,6 +40,7 @@ builder.Services
             add a short summary with update_issue(append_description=...).
             The knowledge base (kb_* tools) is the user's folders of markdown notes; #words in them are tags.
             To reference an entry from an issue, put kb_read's link_markdown into the description and/or call link_entry.
+            Sources may be synced with Google Drive automatically; kb_sync_gdrive forces a sync.
             """;
     })
     .WithStdioServerTransport()

@@ -50,7 +50,8 @@ public sealed partial class KbViewModel : ObservableObject
     [ObservableProperty] private string _sourceName = "";
     [ObservableProperty] private string _sourcePath = "";
     [ObservableProperty] private bool _sourceMissing;
-    [ObservableProperty] private bool _sourceSync;
+    [ObservableProperty] private string? _gDriveStatus;
+    [ObservableProperty] private bool _gDriveError;
     [ObservableProperty] private string _filter = "";
     [ObservableProperty] private string? _tagFilter;
     [ObservableProperty] private KbEntryViewModel? _entry;
@@ -81,7 +82,7 @@ public sealed partial class KbViewModel : ObservableObject
         SourceId = s.Id;
         SourceName = s.Name;
         SourcePath = s.Path;
-        SourceSync = s.ObsidianSync;
+        UpdateGDriveStatus();
         _signature = "";
         _expanded.Clear();
         Filter = "";
@@ -104,8 +105,18 @@ public sealed partial class KbViewModel : ObservableObject
         Refresh();
     }
 
-    void Schedule()
+    /// <summary>"☁ Google Диск · Notes · 12:03" or the last error.</summary>
+    public void UpdateGDriveStatus()
     {
+        var info = SourceId == 0 ? null : TaskManager.GDrive.GDriveService.Info(_main.S.Db, SourceId);
+        GDriveError = info?.LastError is not null;
+        GDriveStatus = info is null ? null
+            : info.LastError is { } err ? $"☁ Google Диск: {err}"
+            : info.LastSync is { } t ? $"☁ Google Диск · {info.FolderName} · {t.ToLocalTime():HH:mm}"
+            : $"☁ Google Диск · {info.FolderName}";
+    }
+
+    void Schedule()    {
         _refreshTimer.Stop();
         _refreshTimer.Start();
     }

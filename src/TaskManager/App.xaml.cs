@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Threading;
 using TaskManager.Services;
 using TaskManager.ViewModels;
@@ -19,6 +19,7 @@ public partial class App : Application
         var vm = new MainViewModel(Services);
         MainWindow = new MainWindow(vm);
         MainWindow.Show();
+        Services.GDrive.StartPeriodic(TimeSpan.FromMinutes(1)); // pull changes made on other devices
     }
 
     protected override void OnExit(ExitEventArgs e)

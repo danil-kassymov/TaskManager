@@ -8,7 +8,7 @@ namespace TaskManager.Mcp;
 
 /// <summary>Knowledge base ("База данных"): folders of .md files the user registered as sources.</summary>
 [McpServerToolType]
-public sealed class KbTools(TaskService tasks)
+public sealed class KbTools(TaskService tasks, TaskManager.GDrive.GDriveService gdrive)
 {
     static readonly JsonSerializerOptions Json = new()
     {
@@ -74,6 +74,23 @@ public sealed class KbTools(TaskService tasks)
     public string Move([Description("Source name or id")] string source, [Description("Current path")] string path,
         [Description("Target folder")] string folder) =>
         Run(() => tasks.KbMove(source, path, folder));
+
+    [McpServerTool(Name = "kb_sync_gdrive", Title = "Sync knowledge base with Google Drive")]
+    [Description("Two-way sync of a source with its Google Drive folder right now (normally automatic: after changes and every couple of minutes). Call before reading if the user says they edited notes on another device.")]
+    public async Task<string> SyncGDrive([Description("Source name or id")] string source)
+    {
+        long id;
+        try { id = tasks.GDriveSourceId(source); }
+        catch (ArgumentException ex) { throw new McpException(ex.Message, ex); }
+        var result = await gdrive.SyncNow(id);
+        if (result is null)
+            throw new McpException("Синхронизация не выполнена: " + (tasks.GDriveLastError(id) ?? "нет входа в Google"));
+        return Run(() => new
+        {
+            uploaded = result.Uploaded, downloaded = result.Downloaded,
+            deleted = result.DeletedLocal + result.DeletedRemote, conflicts = result.Conflicts, summary = result.ToString(),
+        });
+    }
 
     [McpServerTool(Name = "kb_list_tags", ReadOnly = true, Title = "List tags")]
     [Description("Lists #tags used in entries with their colors and entry counts.")]

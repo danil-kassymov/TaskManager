@@ -11,8 +11,6 @@ public sealed class KbSource
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
     public long Sort { get; set; }
-    /// <summary>Open the Obsidian vault after changes so Obsidian Sync uploads them.</summary>
-    public bool ObsidianSync { get; set; }
 }
 
 /// <summary>A markdown file inside a source. <see cref="Path"/> is relative to the source root, with '/' separators.</summary>
@@ -36,7 +34,7 @@ public sealed partial class KnowledgeBase(Db db)
     // Parsed tags and lower-cased text per file, invalidated by modification time.
     readonly Dictionary<string, (DateTime Modified, string[] Tags, string Text)> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Raised after TaskManager itself changed files of a source (used to trigger Obsidian Sync).</summary>
+    /// <summary>Raised after TaskManager itself changed files of a source (used to trigger Google Drive sync).</summary>
     public Action<KbSource>? Changed { get; set; }
 
     void Touched(long sourceId)
@@ -61,15 +59,10 @@ public sealed partial class KnowledgeBase(Db db)
             throw new InvalidOperationException($"Папка уже добавлена: {full}");
         name = string.IsNullOrWhiteSpace(name) ? new DirectoryInfo(full).Name : name.Trim();
         var sort = db.Conn.ExecuteScalar<long>("SELECT COALESCE(MAX(sort), 0) + 1 FROM kb_sources");
-        var sync = TaskManager.Kb.ObsidianSync.IsInVault(full); // folders of an Obsidian vault sync by default
         var id = db.Conn.ExecuteScalar<long>(
-            "INSERT INTO kb_sources(name, path, sort, obsidian_sync) VALUES (@name, @full, @sort, @sync) RETURNING id",
-            new { name, full, sort, sync });
+            "INSERT INTO kb_sources(name, path, sort) VALUES (@name, @full, @sort) RETURNING id", new { name, full, sort });
         return Source(id);
     }
-
-    public void SetObsidianSync(long id, bool enabled) =>
-        db.Conn.Execute("UPDATE kb_sources SET obsidian_sync=@enabled WHERE id=@id", new { id, enabled });
 
     public void RenameSource(long id, string name) =>
         db.Conn.Execute("UPDATE kb_sources SET name=@name WHERE id=@id", new { id, name = name.Trim() });

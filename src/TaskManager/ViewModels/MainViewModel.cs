@@ -84,8 +84,17 @@ public sealed partial class MainViewModel : ObservableObject
         _externalTimer.Tick += (_, _) => CheckExternalChanges();
         _externalTimer.Start();
 
-        S.Obsidian.Log += msg => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => Status = msg);
-    }
+        S.GDrive.Status += (id, msg) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (!msg.EndsWith('…') && !msg.EndsWith("без изменений")) Status = msg; // routine periodic checks stay quiet
+            if (IsKbMode && Kb.SourceId == id) Kb.UpdateGDriveStatus();
+        });
+        S.GDrive.Synced += (id, _) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (!IsKbMode || Kb.SourceId != id) return;
+            Kb.Refresh();
+            Kb.Entry?.ReloadIfChanged();
+        });    }
 
     readonly DispatcherTimer _externalTimer;
     long _dataVersion;
@@ -121,7 +130,8 @@ public sealed partial class MainViewModel : ObservableObject
         var selected = SelectedNav?.Token;
         Sync(ProjectNav, Projects.Select(p => new NavItem(NavKind.Project, p.Name, p.Id, p.Color)));
         Sync(LabelNav, Labels.Select(l => new NavItem(NavKind.Label, l.Name, l.Id, l.Color)));
-        Sync(KbNav, S.Kb.Sources().Select(s => new NavItem(NavKind.KbSource, s.Name, s.Id) { IsSynced = s.ObsidianSync }));
+        var gdrive = TaskManager.GDrive.GDriveService.EnabledSources(S.Db).ToHashSet();
+        Sync(KbNav, S.Kb.Sources().Select(s => new NavItem(NavKind.KbSource, s.Name, s.Id) { IsGDrive = gdrive.Contains(s.Id) }));
         if (selected is not null && SelectedNav is { IsEntity: true })
             SelectedNav = AllNav().FirstOrDefault(n => n.Token == selected) ?? Views[0];
     }
@@ -423,28 +433,36 @@ public sealed partial class MainViewModel : ObservableObject
         Detail?.Refresh();
     }
 
-    public void SetObsidianSync(long id, bool enabled)
-    {
-        S.Kb.SetObsidianSync(id, enabled);
-        LoadReferenceData();
-        if (IsKbMode && Kb.SourceId == id) Kb.SourceSync = enabled;
-        Status = enabled ? "Obsidian Sync включён: после изменений хранилище откроется в Obsidian, если оно закрыто"
-                         : "Obsidian Sync выключен для этого источника";
-    }
+    // ---- Google Drive ----
 
-    public void SyncKbNow(long id)
+    public async Task<bool> EnableGDrive(long sourceId, string? folder)
     {
-        var s = S.Kb.Source(id);
-        if (TaskManager.Kb.ObsidianSync.IsInVault(s.Path) is false) { Status = "Папка не внутри хранилища Obsidian (нет .obsidian)"; return; }
+        Status = "Подключаю Google Диск…";
         try
         {
-            if (!S.Obsidian.SyncNow(s.Path)) Status = "Хранилище уже открыто в Obsidian — синхронизация идёт автоматически";
+            var info = await S.GDrive.Enable(sourceId, folder);
+            LoadReferenceData();
+            if (IsKbMode && Kb.SourceId == sourceId) Kb.UpdateGDriveStatus();
+            Status = $"Google Диск подключён: папка «{info.FolderName}»";
+            return true;
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or TaskManager.GDrive.DriveException or HttpRequestException)
         {
-            Status = $"Не удалось запустить Obsidian: {ex.Message}";
+            ShowError("Google Диск", ex is HttpRequestException ? "Нет связи с Google. Проверьте интернет." : ex.Message);
+            Status = null;
+            return false;
         }
     }
+
+    public void DisableGDrive(long sourceId)
+    {
+        S.GDrive.Disable(sourceId);
+        LoadReferenceData();
+        if (IsKbMode && Kb.SourceId == sourceId) Kb.UpdateGDriveStatus();
+        Status = "Google Диск отключён. Файлы остались и на компьютере, и на Диске.";
+    }
+
+    public void SyncGDriveNow(long sourceId) => _ = S.GDrive.SyncNow(sourceId);
 
     public void OpenKbEntry(long sourceId, string path)
     {

@@ -103,6 +103,30 @@ public sealed class Db : IDisposable
         """
         ALTER TABLE kb_sources ADD COLUMN obsidian_sync INTEGER NOT NULL DEFAULT 0;
         """,
+        """
+        CREATE TABLE gdrive_sources(
+            source_id INTEGER PRIMARY KEY REFERENCES kb_sources(id) ON DELETE CASCADE,
+            folder_id TEXT NOT NULL,
+            folder_name TEXT NOT NULL DEFAULT '',
+            last_sync INTEGER,
+            last_error TEXT);
+
+        -- What both sides looked like after the last successful sync of each path.
+        CREATE TABLE gdrive_state(
+            source_id INTEGER NOT NULL REFERENCES kb_sources(id) ON DELETE CASCADE,
+            path TEXT NOT NULL COLLATE NOCASE,
+            is_folder INTEGER NOT NULL,
+            drive_id TEXT NOT NULL,
+            drive_md5 TEXT,
+            local_md5 TEXT,
+            local_size INTEGER,
+            local_mtime INTEGER,
+            PRIMARY KEY(source_id, path));
+        """,
+        """
+        -- Obsidian Sync integration was removed.
+        ALTER TABLE kb_sources DROP COLUMN obsidian_sync;
+        """,
     ];
 
     void Migrate()

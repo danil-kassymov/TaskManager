@@ -78,9 +78,19 @@
                         <TextBlock Text="{Binding SourceName}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding SourcePath}" Foreground="{StaticResource Text3}" FontSize="11.5"
                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
-                        <TextBlock Text="⟳ Obsidian Sync" Foreground="{StaticResource Accent}" FontSize="11.5"
-                                   ToolTip="После изменений хранилище откроется в Obsidian (если оно закрыто), и Obsidian Sync загрузит правки"
-                                   Visibility="{Binding SourceSync, Converter={StaticResource Visible}}" />
+                        <TextBlock x:Name="GDriveText" Text="{Binding GDriveStatus}" FontSize="11.5" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding GDriveStatus}" Visibility="{Binding GDriveStatus, Converter={StaticResource Visible}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GDriveError}" Value="True">
+                                            <Setter Property="Foreground" Value="#EB5757" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </DockPanel>
             </Border>

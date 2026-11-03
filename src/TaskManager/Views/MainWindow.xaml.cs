@@ -49,13 +49,6 @@ public partial class MainWindow : Window
         actions["delete"] = DeleteCurrent;
         actions["add-kb"] = () => AddKbSource_Click(this, new RoutedEventArgs());
 
-        vm.S.Obsidian.Launched += () => Dispatcher.BeginInvoke(async () =>
-        {
-            if (!IsActive) return;
-            await Task.Delay(2500); // give Obsidian time to show its window
-            Activate();
-        });
-
         PreviewKeyDown += Window_PreviewKeyDown;        KeyDown += Window_KeyDown;
         SourceInitialized += (_, _) => UseDarkTitleBar();
         Closing += Window_Closing;
@@ -390,20 +383,50 @@ public partial class MainWindow : Window
         if (Directory.Exists(path)) Process.Start("explorer.exe", $"\"{path}\"");
     }
 
-    void ToggleObsidianSync_Click(object sender, RoutedEventArgs e)
+    // ---------------- Google Drive ----------------
+
+    bool EnsureGoogleSignIn()
     {
-        if (NavOf(sender) is not { } nav) return;
-        if (!nav.IsSynced && !TaskManager.Kb.ObsidianSync.IsInVault(_vm.S.Kb.Source(nav.Id).Path))
-        {
-            Dialogs.Info(this, "Obsidian Sync", "Эта папка не находится внутри хранилища Obsidian (не найдена папка .obsidian ни в ней, ни выше).");
-            return;
-        }
-        _vm.SetObsidianSync(nav.Id, !nav.IsSynced);
+        if (_vm.S.GDrive.Auth.IsSignedIn) return true;
+        new GoogleDriveDialog(this, _vm.S.GDrive.Auth).ShowDialog();
+        return _vm.S.GDrive.Auth.IsSignedIn;
     }
 
-    void SyncKbNow_Click(object sender, RoutedEventArgs e)
+    void GoogleAccount_Click(object sender, RoutedEventArgs e)
     {
-        if (NavOf(sender) is { } nav) _vm.SyncKbNow(nav.Id);
+        new GoogleDriveDialog(this, _vm.S.GDrive.Auth).ShowDialog();
+        _ = _vm.S.GDrive.SyncAll();
+    }
+
+    async void EnableGDrive_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is not { } nav || !EnsureGoogleSignIn()) return;
+        var r = Dialogs.Prompt(this, "Google Диск: подключить источник",
+            [new("Папка на Google Диске", Hint: $"Пусто — создать новую папку «{nav.Title}». Или ссылка/ID папки, созданной TaskManager на другом компьютере")],
+            "Подключить");
+        if (r is null) return;
+        if (await _vm.EnableGDrive(nav.Id, r[0]))
+            Dialogs.Info(this, "Google Диск", "Готово. Изменения будут отправляться на Диск через несколько секунд после правок, " +
+                "а изменения с Диска — подтягиваться раз в минуту.\n\nЧтобы подключить эту же базу на другом компьютере, " +
+                "скопируйте ссылку: правый клик по источнику → «Открыть папку на Google Диске».");
+    }
+
+    void SyncGDrive_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is { } nav) _vm.SyncGDriveNow(nav.Id);
+    }
+
+    void OpenGDriveFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is { } nav && TaskManager.GDrive.GDriveService.Info(_vm.S.Db, nav.Id) is { } info)
+            Process.Start(new ProcessStartInfo(info.Link) { UseShellExecute = true });
+    }
+
+    void DisableGDrive_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is not { } nav) return;
+        if (Dialogs.Confirm(this, "Отключить Google Диск", $"Синхронизация «{nav.Title}» остановится. Файлы останутся и на компьютере, и на Диске.", "Отключить"))
+            _vm.DisableGDrive(nav.Id);
     }
 
     void RemoveKbSource_Click(object sender, RoutedEventArgs e)

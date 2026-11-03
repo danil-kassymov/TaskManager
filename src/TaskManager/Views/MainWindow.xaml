@@ -144,6 +144,7 @@
                                     <MenuItem Header="Экспорт бэкапа…" Click="Export_Click" />
                                     <MenuItem Header="Импорт бэкапа…" Click="Import_Click" />
                                     <MenuItem Header="Открыть папку с данными" Click="OpenData_Click" />
+                                    <MenuItem Header="Google Диск…" Click="GoogleAccount_Click" />
                                     <Separator />
                                     <MenuItem Header="Горячие клавиши" Click="Shortcuts_Click" />
                                 </ContextMenu>
@@ -231,18 +232,22 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="🗂" FontSize="11" Margin="0,0,9,0" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            <TextBlock Text="⟳" Foreground="{StaticResource Text3}" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"
-                                                       ToolTip="Obsidian Sync" Visibility="{Binding IsSynced, Converter={StaticResource Visible}}" />
+                                            <TextBlock Text="☁" Foreground="{StaticResource Text3}" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       ToolTip="Google Диск" Visibility="{Binding IsGDrive, Converter={StaticResource Visible}}" />
                                         </StackPanel>
                                         <Button.ContextMenu>
                                             <ContextMenu>
                                                 <MenuItem Header="Переименовать…" Click="RenameKbSource_Click" />
                                                 <MenuItem Header="Открыть в проводнике" Click="RevealKbSource_Click" />
                                                 <Separator />
-                                                <MenuItem Header="Obsidian Sync после изменений" IsCheckable="True"
-                                                          IsChecked="{Binding IsSynced, Mode=OneWay}" Click="ToggleObsidianSync_Click"
-                                                          ToolTip="Если хранилище закрыто в Obsidian, открыть его, чтобы Obsidian Sync загрузил изменения" />
-                                                <MenuItem Header="Синхронизировать через Obsidian сейчас" Click="SyncKbNow_Click" />
+                                                <MenuItem Header="Google Диск: подключить…" Click="EnableGDrive_Click"
+                                                          Visibility="{Binding IsGDrive, Converter={StaticResource Visible}, ConverterParameter='!'}" />
+                                                <MenuItem Header="Синхронизировать с Google Диском сейчас" Click="SyncGDrive_Click"
+                                                          Visibility="{Binding IsGDrive, Converter={StaticResource Visible}}" />
+                                                <MenuItem Header="Открыть папку на Google Диске" Click="OpenGDriveFolder_Click"
+                                                          Visibility="{Binding IsGDrive, Converter={StaticResource Visible}}" />
+                                                <MenuItem Header="Отключить Google Диск" Click="DisableGDrive_Click"
+                                                          Visibility="{Binding IsGDrive, Converter={StaticResource Visible}}" />
                                                 <Separator />
                                                 <MenuItem Header="Убрать из списка (файлы останутся)" Click="RemoveKbSource_Click" />
                                             </ContextMenu>

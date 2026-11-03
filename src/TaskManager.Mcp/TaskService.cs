@@ -23,13 +23,13 @@ public sealed record KbEntryInfo(string Source, string Path, string Title, strin
 /// Everything the MCP tools do, on top of the same repositories the desktop app uses.
 /// One SQLite connection is not thread-safe, so every call takes a lock.
 /// </summary>
-public sealed partial class TaskService(Db db, AppPaths paths, ObsidianSync? obsidian = null)
+public sealed partial class TaskService(Db db, AppPaths paths, TaskManager.GDrive.GDriveService? gdrive = null)
 {
     readonly object _lock = new();
     readonly ProjectRepository _projects = new(db);
     readonly IssueRepository _issues = new(db);
     readonly LabelRepository _labels = new(db);
-    readonly KnowledgeBase _kb = new(db) { Changed = obsidian is null ? null : obsidian.Schedule };
+    readonly KnowledgeBase _kb = new(db) { Changed = gdrive is null ? null : gdrive.Schedule };
 
     T Locked<T>(Func<T> f)
     {
@@ -174,7 +174,10 @@ public sealed partial class TaskService(Db db, AppPaths paths, ObsidianSync? obs
     public List<object> KbSources() => Locked(() =>
         _kb.Sources().Select(s => (object)new
         {
-            id = s.Id, name = s.Name, path = s.Path, exists = Directory.Exists(s.Path), obsidian_sync = s.ObsidianSync,
+            id = s.Id, name = s.Name, path = s.Path, exists = Directory.Exists(s.Path),
+            google_drive = TaskManager.GDrive.GDriveService.Info(db, s.Id) is { } g
+                ? new { folder = g.FolderName, link = g.Link, last_sync = g.LastSync?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), error = g.LastError }
+                : null,
             entries = Directory.Exists(s.Path) ? _kb.Entries(s.Id).Count : 0,
         }).ToList());
 
@@ -284,6 +287,17 @@ public sealed partial class TaskService(Db db, AppPaths paths, ObsidianSync? obs
         }
         return Get(issue.Key).Issue;
     });
+
+    /// <summary>Source id for a name/id, checking that it is connected to Google Drive.</summary>
+    public long GDriveSourceId(string source) => Locked(() =>
+    {
+        var s = _kb.FindSource(source);
+        if (TaskManager.GDrive.GDriveService.Info(db, s.Id) is null)
+            throw new ArgumentException($"«{s.Name}» не подключён к Google Диску (подключается в приложении: правый клик по источнику)");
+        return s.Id;
+    });
+
+    public string? GDriveLastError(long sourceId) => Locked(() => TaskManager.GDrive.GDriveService.Info(db, sourceId)?.LastError);
 
     static string MdPath(string path)
     {

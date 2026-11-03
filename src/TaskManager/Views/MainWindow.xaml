@@ -1,0 +1,427 @@
+<Window x:Class="TaskManager.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:TaskManager.Controls"
+        xmlns:vm="clr-namespace:TaskManager.ViewModels"
+        xmlns:v="clr-namespace:TaskManager.Views"
+        xmlns:data="clr-namespace:TaskManager.Data;assembly=TaskManager.Core"
+        Title="TaskManager" Icon="/Assets/app.ico" Width="1280" Height="800" MinWidth="760" MinHeight="480"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource UiFont}" FontSize="13.5"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d">
+    <Window.Resources>
+        <!-- Sidebar entry -->
+        <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="Command" Value="{Binding DataContext.SelectNavCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+            <Setter Property="CommandParameter" Value="{Binding}" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="FontSize" Value="13" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Selected}" />
+                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="NavEntry" DataType="{x:Type vm:NavItem}">
+            <Button Style="{StaticResource NavButton}">
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="10" Height="10" CornerRadius="3" Margin="2,0,10,0" VerticalAlignment="Center"
+                            Background="{Binding Color, Converter={StaticResource HexBrush}}"
+                            Visibility="{Binding Color, Converter={StaticResource Visible}}" />
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+
+        <!-- List row -->
+        <DataTemplate x:Key="IssueRowTemplate" DataType="{x:Type vm:IssueRow}">
+            <Grid Height="36" Margin="12,0,12,0" Background="Transparent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="Auto" MinWidth="58" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="64" />
+                </Grid.ColumnDefinitions>
+                <c:PriorityGlyph Priority="{Binding Priority}" VerticalAlignment="Center" ToolTip="{Binding Priority, Converter={StaticResource EnumName}}" />
+                <TextBlock Grid.Column="1" Text="{Binding Key}" Foreground="{StaticResource Text3}" FontSize="12.5"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <c:StatusGlyph Grid.Column="2" Status="{Binding Status}" VerticalAlignment="Center" ToolTip="{Binding StatusName}" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,8,0">
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <Border Margin="8,0,0,0" Padding="5,0" CornerRadius="4" Background="{StaticResource Panel2}"
+                            Visibility="{Binding SubProgress, Converter={StaticResource Visible}}" VerticalAlignment="Center"
+                            ToolTip="Подзадачи">
+                        <TextBlock Text="{Binding SubProgress}" FontSize="11.5" Foreground="{StaticResource Text2}" />
+                    </Border>
+                </StackPanel>
+                <ItemsControl Grid.Column="4" ItemsSource="{Binding Labels}" ItemTemplate="{StaticResource LabelPill}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Grid.Column="6" Text="{Binding Updated}" Foreground="{StaticResource Text3}" FontSize="12"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Board card -->
+        <DataTemplate x:Key="CardTemplate" DataType="{x:Type vm:IssueRow}">
+            <Border x:Name="Card" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="6" Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                    MouseLeftButtonDown="Card_MouseDown" MouseMove="Card_MouseMove" MouseLeftButtonUp="Card_MouseUp">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Text="{Binding Key}" Foreground="{StaticResource Text3}" FontSize="12" />
+                        <c:PriorityGlyph Priority="{Binding Priority}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Margin="0,4,0,0" MaxHeight="60" TextTrimming="CharacterEllipsis" />
+                    <WrapPanel Margin="0,6,0,0" Visibility="{Binding HasLabels, Converter={StaticResource Visible}}">
+                        <ItemsControl ItemsSource="{Binding Labels}" ItemTemplate="{StaticResource LabelPill}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding SubProgress, StringFormat='☑ {0}'}" FontSize="11.5" Foreground="{StaticResource Text2}"
+                               Margin="0,6,0,0" Visibility="{Binding SubProgress, Converter={StaticResource Visible}}" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Card" Property="Background" Value="{StaticResource Panel2}" />
+                </Trigger>
+                <DataTrigger Value="True">
+                    <DataTrigger.Binding>
+                        <MultiBinding Converter="{StaticResource Equal}">
+                            <Binding Path="Id" />
+                            <Binding Path="DataContext.SelectedRow.Id" RelativeSource="{RelativeSource AncestorType=Window}" />
+                        </MultiBinding>
+                    </DataTrigger.Binding>
+                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Accent}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid x:Name="Root">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarColumn" Width="220" MinWidth="160" MaxWidth="360" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="DetailColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ============ Sidebar ============ -->
+            <DockPanel Background="{StaticResource Panel}">
+                <StackPanel DockPanel.Dock="Top" Margin="0,10,0,4">
+                    <Grid Margin="14,2,10,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="/Assets/logo-512.png" Width="20" Height="20" Margin="0,0,8,0"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                            <TextBlock Text="TaskManager" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Style="{StaticResource FlatButton}" HorizontalAlignment="Right" Padding="6,2"
+                                ToolTip="Меню" Click="AppMenu_Click">
+                            <TextBlock Text="⋯" FontSize="15" />
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Новый проект…" Click="NewProject_Click" />
+                                    <MenuItem Header="Новая метка…" Click="NewLabel_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Экспорт бэкапа…" Click="Export_Click" />
+                                    <MenuItem Header="Импорт бэкапа…" Click="Import_Click" />
+                                    <MenuItem Header="Открыть папку с данными" Click="OpenData_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Горячие клавиши" Click="Shortcuts_Click" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                    </Grid>
+                    <Button Style="{StaticResource ChipButton}" Margin="10,0,10,6" Padding="10,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                            Command="{Binding NewIssueCommand}" CommandParameter="{x:Null}">
+                        <Grid>
+                            <TextBlock Text="＋  Новая задача" />
+                            <Border Style="{StaticResource KeyHint}" HorizontalAlignment="Right"><TextBlock Text="C" FontSize="11" Foreground="{StaticResource Text2}" /></Border>
+                        </Grid>
+                    </Button>
+                    <Button Style="{StaticResource FlatButton}" Margin="10,0,10,0" Padding="10,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Click="Palette_Click">
+                        <Grid>
+                            <TextBlock Text="⌕  Поиск и команды" />
+                            <Border Style="{StaticResource KeyHint}" HorizontalAlignment="Right"><TextBlock Text="Ctrl K" FontSize="11" Foreground="{StaticResource Text2}" /></Border>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,4,0,12">
+                        <ItemsControl ItemsSource="{Binding Views}" ItemTemplate="{StaticResource NavEntry}" />
+
+                        <Grid>
+                            <TextBlock Text="Проекты" Style="{StaticResource SectionHeader}" />
+                            <Button Style="{StaticResource FlatButton}" HorizontalAlignment="Right" Margin="0,8,10,0" Padding="6,0"
+                                    ToolTip="Новый проект" Click="NewProject_Click">
+                                <TextBlock Text="＋" />
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding ProjectNav}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NavItem}">
+                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource NavEntry}">
+                                        <ContentPresenter.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Переименовать…" Click="RenameNav_Click" />
+                                                <MenuItem Header="Цвет" x:Name="ColorMenu" Loaded="ColorMenu_Loaded" />
+                                                <Separator />
+                                                <MenuItem Header="Архивировать проект" Click="ArchiveProject_Click" />
+                                            </ContextMenu>
+                                        </ContentPresenter.ContextMenu>
+                                    </ContentPresenter>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Grid>
+                            <TextBlock Text="Метки" Style="{StaticResource SectionHeader}" />
+                            <Button Style="{StaticResource FlatButton}" HorizontalAlignment="Right" Margin="0,8,10,0" Padding="6,0"
+                                    ToolTip="Новая метка" Click="NewLabel_Click">
+                                <TextBlock Text="＋" />
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding LabelNav}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NavItem}">
+                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource NavEntry}">
+                                        <ContentPresenter.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Переименовать…" Click="RenameNav_Click" />
+                                                <MenuItem Header="Цвет" Loaded="ColorMenu_Loaded" />
+                                                <Separator />
+                                                <MenuItem Header="Удалить метку" Click="DeleteLabel_Click" />
+                                            </ContextMenu>
+                                        </ContentPresenter.ContextMenu>
+                                    </ContentPresenter>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Grid>
+                            <TextBlock Text="База данных" Style="{StaticResource SectionHeader}" />
+                            <Button Style="{StaticResource FlatButton}" HorizontalAlignment="Right" Margin="0,8,10,0" Padding="6,0"
+                                    ToolTip="Добавить папку как источник базы" Click="AddKbSource_Click">
+                                <TextBlock Text="＋" />
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding KbNav}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NavItem}">
+                                    <Button Style="{StaticResource NavButton}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="🗂" FontSize="11" Margin="0,0,9,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Переименовать…" Click="RenameKbSource_Click" />
+                                                <MenuItem Header="Открыть в проводнике" Click="RevealKbSource_Click" />
+                                                <Separator />
+                                                <MenuItem Header="Убрать из списка (файлы останутся)" Click="RemoveKbSource_Click" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Style="{StaticResource FlatButton}" Margin="6,0" Padding="8,5" HorizontalAlignment="Stretch"
+                                Click="AddKbSource_Click" Visibility="{Binding KbNav.Count, Converter={StaticResource Visible}, ConverterParameter='!'}">
+                            <TextBlock Text="＋ Добавить папку" Foreground="{StaticResource Text3}" />
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Style="{StaticResource Splitter}" />
+
+            <!-- ============ Main content ============ -->
+            <DockPanel Grid.Column="2" Visibility="{Binding IsKbMode, Converter={StaticResource Visible}, ConverterParameter='!'}">
+                <!-- Header / toolbar -->
+                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="16,8,12,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" MaxWidth="226" MinWidth="110" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding Header}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding IssueCount}" Foreground="{StaticResource Text3}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <TextBox x:Name="FilterBox" Grid.Column="2" Style="{StaticResource InputTextBox}"
+                                 HorizontalAlignment="Stretch" Padding="8,3" Margin="0,0,6,0" VerticalAlignment="Center"
+                                 Tag="Фильтр  /" Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" FlowDirection="LeftToRight" />
+
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+
+                            <Button Style="{StaticResource FlatButton}" c:MenuButton.OpenOnClick="True" ToolTip="Фильтр по приоритету">
+                                <StackPanel Orientation="Horizontal">
+                                    <c:PriorityGlyph Priority="{Binding PriorityFilter, TargetNullValue={x:Static vm:Defaults.HighPriority}}" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding PriorityFilter, Converter={StaticResource EnumName}}"
+                                               Visibility="{Binding PriorityFilter, Converter={StaticResource Visible}}" />
+                                </StackPanel>
+                                <Button.ContextMenu>
+                                    <ContextMenu ItemsSource="{x:Static vm:Defaults.PriorityFilters}">
+                                        <ContextMenu.ItemContainerStyle>
+                                            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                                <Setter Property="Command" Value="{Binding DataContext.SetPriorityFilterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <Setter Property="CommandParameter" Value="{Binding}" />
+                                                <Setter Property="HeaderTemplate" Value="{StaticResource PriorityItem}" />
+                                            </Style>
+                                        </ContextMenu.ItemContainerStyle>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+
+                            <Button Style="{StaticResource FlatButton}" c:MenuButton.OpenOnClick="True" ToolTip="Сортировка и отображение">
+                                <TextBlock Text="Вид ▾" />
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Сортировка" IsEnabled="False" />
+                                        <MenuItem Header="По приоритету" Command="{Binding SetSortCommand}" CommandParameter="{x:Static data:SortMode.Priority}"
+                                                  IsChecked="{Binding SortMode, Mode=OneWay, Converter={x:Static vm:Defaults.EqualsParam}, ConverterParameter={x:Static data:SortMode.Priority}}" />
+                                        <MenuItem Header="Вручную" Command="{Binding SetSortCommand}" CommandParameter="{x:Static data:SortMode.Manual}"
+                                                  IsChecked="{Binding SortMode, Mode=OneWay, Converter={x:Static vm:Defaults.EqualsParam}, ConverterParameter={x:Static data:SortMode.Manual}}" />
+                                        <MenuItem Header="По обновлению" Command="{Binding SetSortCommand}" CommandParameter="{x:Static data:SortMode.Updated}"
+                                                  IsChecked="{Binding SortMode, Mode=OneWay, Converter={x:Static vm:Defaults.EqualsParam}, ConverterParameter={x:Static data:SortMode.Updated}}" />
+                                        <MenuItem Header="По созданию" Command="{Binding SetSortCommand}" CommandParameter="{x:Static data:SortMode.Created}"
+                                                  IsChecked="{Binding SortMode, Mode=OneWay, Converter={x:Static vm:Defaults.EqualsParam}, ConverterParameter={x:Static data:SortMode.Created}}" />
+                                        <Separator />
+                                        <MenuItem Header="Скрыть завершённые" IsCheckable="True" IsChecked="{Binding HideClosed}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+
+                            <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" Margin="6,0,0,0" Padding="2">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource {x:Type ToggleButton}}" Padding="10,2" FontSize="12.5" Content="Список"
+                                                 IsChecked="{Binding IsBoard, Converter={x:Static vm:Defaults.Not}}" ToolTip="Ctrl+B" />
+                                    <RadioButton Style="{StaticResource {x:Type ToggleButton}}" Padding="10,2" FontSize="12.5" Content="Канбан"
+                                                 IsChecked="{Binding IsBoard}" ToolTip="Ctrl+B" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Status bar -->
+                <Border DockPanel.Dock="Bottom" Height="24" Padding="14,0" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0">
+                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Text3}" FontSize="12" VerticalAlignment="Center" />
+                </Border>
+
+                <Grid>
+                    <!-- List -->
+                    <ListBox x:Name="IssueList" Style="{StaticResource BareListBox}" ItemsSource="{Binding IssuesView}"
+                             SelectedItem="{Binding SelectedRow}" ItemTemplate="{StaticResource IssueRowTemplate}"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
+                             Padding="0,0,0,24"
+                             Visibility="{Binding IsBoard, Converter={StaticResource Visible}, ConverterParameter='!'}">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource Panel}" Padding="16,0,10,0" Height="34">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Padding="6,1" ToolTip="Новая задача с этим статусом"
+                                                        Command="{Binding DataContext.NewIssueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding Name}" VerticalAlignment="Center">
+                                                    <TextBlock Text="＋" />
+                                                </Button>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <c:StatusGlyph Status="{Binding Name}" Margin="0,0,10,0" />
+                                                    <TextBlock Text="{Binding Name, Converter={StaticResource EnumName}}" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource Text}" />
+                                                    <TextBlock Text="{Binding ItemCount}" Foreground="{StaticResource Text3}" Margin="8,0,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                    </ListBox>
+
+                    <!-- Board -->
+                    <ScrollViewer x:Name="BoardScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding IsBoard, Converter={StaticResource Visible}}">
+                        <ItemsControl ItemsSource="{Binding Columns}" Margin="12,12,12,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:BoardColumn}">
+                                    <DockPanel Width="290" Margin="0,0,10,0" Background="Transparent" AllowDrop="True"
+                                               DragOver="Column_DragOver" Drop="Column_Drop" DragLeave="Column_DragLeave" Tag="{Binding Status}">
+                                        <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Padding="6,1"
+                                                    Command="{Binding DataContext.NewIssueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding Status}">
+                                                <TextBlock Text="＋" />
+                                            </Button>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <c:StatusGlyph Status="{Binding Status}" Margin="0,0,8,0" />
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" />
+                                                <TextBlock Text="{Binding Count}" Foreground="{StaticResource Text3}" Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <Border x:Name="DropZone" CornerRadius="8" Background="#0AFFFFFF" Padding="6,6,6,0">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource CardTemplate}" Margin="0,0,0,40" />
+                                            </ScrollViewer>
+                                        </Border>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Empty state -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                Visibility="{Binding IssueCount, Converter={StaticResource Visible}, ConverterParameter='!'}">
+                        <TextBlock Text="Здесь пока пусто" HorizontalAlignment="Center" FontSize="15" Foreground="{StaticResource Text2}" />
+                        <TextBlock Text="Нажми C, чтобы создать задачу" HorizontalAlignment="Center" Margin="0,6,0,0" Foreground="{StaticResource Text3}" />
+                    </StackPanel>
+                </Grid>
+            </DockPanel>
+
+            <GridSplitter x:Name="DetailSplitter" Grid.Column="3" Style="{StaticResource Splitter}"
+                          Visibility="{Binding Detail, Converter={StaticResource Visible}}" />
+
+            <!-- ============ Detail panel ============ -->
+            <v:IssueDetailView x:Name="DetailView" Grid.Column="4" DataContext="{Binding Detail}"
+                               Visibility="{Binding Converter={StaticResource Visible}}" />
+
+            <!-- ============ Knowledge base ============ -->
+            <v:KbView x:Name="KbView" Grid.Column="2" Grid.ColumnSpan="3" DataContext="{Binding Kb}"
+                      Visibility="{Binding DataContext.IsKbMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource Visible}}" />
+        </Grid>
+
+        <!-- ============ Overlays ============ -->
+        <v:QuickCreateView x:Name="CreateOverlay" DataContext="{Binding Create}"
+                           Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+        <v:CommandPaletteView x:Name="PaletteOverlay" DataContext="{Binding Palette}"
+                              Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+    </Grid>
+</Window>

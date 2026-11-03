@@ -122,6 +122,7 @@
                 <TreeView x:Name="Tree" ItemsSource="{Binding Tree}" Background="Transparent" BorderThickness="0" Padding="4,0,4,20"
                           SelectedItemChanged="Tree_SelectedItemChanged" AllowDrop="True" Drop="Tree_Drop" DragOver="Tree_DragOver"
                           PreviewMouseLeftButtonDown="Tree_PreviewMouseDown" PreviewMouseMove="Tree_PreviewMouseMove"
+                          PreviewMouseLeftButtonUp="Tree_PreviewMouseUp"
                           Visibility="{Binding IsFiltering, Converter={StaticResource Visible}, ConverterParameter='!'}">
                     <TreeView.ContextMenu>
                         <ContextMenu>

@@ -160,6 +160,32 @@ public partial class KbView : UserControl
     {
         _dragStart = e.GetPosition(Tree);
         _dragNode = (e.OriginalSource as FrameworkElement)?.DataContext as KbNode;
+        // Folders open on a single click (see Tree_PreviewMouseUp); swallow the built-in double-click
+        // toggle so a double click doesn't open and immediately close the folder.
+        _clickCount = e.ClickCount;
+        if (e.ClickCount >= 2 && FolderHeaderAt(e.OriginalSource) is not null) e.Handled = true;
+    }
+
+    int _clickCount;
+
+    void Tree_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _dragNode = null; // a stale node must never be dragged by a later mouse move
+        // The button-up event doesn't carry the click count, so use the one from button-down.
+        if (_clickCount != 1 || FolderHeaderAt(e.OriginalSource) is not { } node) return;
+        node.IsExpanded = !node.IsExpanded;
+    }
+
+    /// <summary>The folder whose row was clicked, unless the click hit the expander arrow (it toggles by itself).</summary>
+    static KbNode? FolderHeaderAt(object source)
+    {
+        for (var d = source as DependencyObject; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is System.Windows.Controls.Primitives.ToggleButton) return null;
+            if (d is TreeViewItem item) return item.DataContext is KbNode { IsFolder: true } n ? n : null;
+            if (d is ContentElement) return null;
+        }
+        return null;
     }
 
     void Tree_PreviewMouseMove(object sender, MouseEventArgs e)

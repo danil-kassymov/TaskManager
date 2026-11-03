@@ -83,6 +83,8 @@ public sealed partial class MainViewModel : ObservableObject
         _externalTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _externalTimer.Tick += (_, _) => CheckExternalChanges();
         _externalTimer.Start();
+
+        S.Obsidian.Log += msg => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => Status = msg);
     }
 
     readonly DispatcherTimer _externalTimer;
@@ -119,7 +121,7 @@ public sealed partial class MainViewModel : ObservableObject
         var selected = SelectedNav?.Token;
         Sync(ProjectNav, Projects.Select(p => new NavItem(NavKind.Project, p.Name, p.Id, p.Color)));
         Sync(LabelNav, Labels.Select(l => new NavItem(NavKind.Label, l.Name, l.Id, l.Color)));
-        Sync(KbNav, S.Kb.Sources().Select(s => new NavItem(NavKind.KbSource, s.Name, s.Id)));
+        Sync(KbNav, S.Kb.Sources().Select(s => new NavItem(NavKind.KbSource, s.Name, s.Id) { IsSynced = s.ObsidianSync }));
         if (selected is not null && SelectedNav is { IsEntity: true })
             SelectedNav = AllNav().FirstOrDefault(n => n.Token == selected) ?? Views[0];
     }
@@ -419,6 +421,29 @@ public sealed partial class MainViewModel : ObservableObject
         S.Kb.RemoveSource(id);
         LoadReferenceData();
         Detail?.Refresh();
+    }
+
+    public void SetObsidianSync(long id, bool enabled)
+    {
+        S.Kb.SetObsidianSync(id, enabled);
+        LoadReferenceData();
+        if (IsKbMode && Kb.SourceId == id) Kb.SourceSync = enabled;
+        Status = enabled ? "Obsidian Sync включён: после изменений хранилище откроется в Obsidian, если оно закрыто"
+                         : "Obsidian Sync выключен для этого источника";
+    }
+
+    public void SyncKbNow(long id)
+    {
+        var s = S.Kb.Source(id);
+        if (TaskManager.Kb.ObsidianSync.IsInVault(s.Path) is false) { Status = "Папка не внутри хранилища Obsidian (нет .obsidian)"; return; }
+        try
+        {
+            if (!S.Obsidian.SyncNow(s.Path)) Status = "Хранилище уже открыто в Obsidian — синхронизация идёт автоматически";
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Status = $"Не удалось запустить Obsidian: {ex.Message}";
+        }
     }
 
     public void OpenKbEntry(long sourceId, string path)

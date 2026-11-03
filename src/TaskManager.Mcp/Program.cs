@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TaskManager.Data;
+using TaskManager.Kb;
 using TaskManager.Mcp;
 using TaskManager.Services;
 
@@ -17,6 +18,14 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 builder.Services.AddSingleton(paths);
 builder.Services.AddSingleton(_ => new Db(paths.Database));
+builder.Services.AddSingleton(sp =>
+{
+    // Obsidian Sync: open the vault after kb_* changes if Obsidian does not have it open. Disposed (and flushed) on exit.
+    var sync = new ObsidianSync();
+    var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ObsidianSync");
+    sync.Log += msg => log.LogWarning("{Message}", msg);
+    return sync;
+});
 builder.Services.AddSingleton<TaskService>();
 builder.Services
     .AddMcpServer(o =>

@@ -100,6 +100,9 @@ public sealed class Db : IDisposable
             PRIMARY KEY(issue_id, source_id, path));
         CREATE INDEX ix_links_entry ON issue_links(source_id, path);
         """,
+        """
+        ALTER TABLE kb_sources ADD COLUMN obsidian_sync INTEGER NOT NULL DEFAULT 0;
+        """,
     ];
 
     void Migrate()

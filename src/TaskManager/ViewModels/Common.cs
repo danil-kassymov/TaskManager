@@ -14,6 +14,7 @@ public sealed class AppServices : IDisposable
     public AppPaths Paths { get; }
     public Settings Settings { get; }
     public AttachmentService Attachments { get; }
+    public TaskManager.Kb.ObsidianSync Obsidian { get; } = new();
     public Db Db { get; private set; } = null!;
     public ProjectRepository Projects { get; private set; } = null!;
     public IssueRepository Issues { get; private set; } = null!;
@@ -34,7 +35,7 @@ public sealed class AppServices : IDisposable
         Projects = new ProjectRepository(Db);
         Issues = new IssueRepository(Db);
         Labels = new LabelRepository(Db);
-        Kb = new TaskManager.Kb.KnowledgeBase(Db);
+        Kb = new TaskManager.Kb.KnowledgeBase(Db) { Changed = Obsidian.Schedule };
     }
 
     public void ImportBackup(string zip)
@@ -48,6 +49,7 @@ public sealed class AppServices : IDisposable
     public void Dispose()
     {
         Settings.Save(Paths.Settings);
+        Obsidian.Dispose(); // runs a pending sync before exit
         Db.Dispose();
     }
 }
@@ -108,6 +110,8 @@ public sealed partial class NavItem(NavKind kind, string title, long id = 0, str
     [ObservableProperty] private string _title = title;
     [ObservableProperty] private string? _color = color;
     [ObservableProperty] private bool _isSelected;
+    /// <summary>Knowledge base source with Obsidian Sync on.</summary>
+    [ObservableProperty] private bool _isSynced;
 
     public string Token => $"{Kind}:{Id}";
     public bool IsEntity => Kind is NavKind.Project or NavKind.Label or NavKind.KbSource;

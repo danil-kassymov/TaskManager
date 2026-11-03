@@ -49,8 +49,14 @@ public partial class MainWindow : Window
         actions["delete"] = DeleteCurrent;
         actions["add-kb"] = () => AddKbSource_Click(this, new RoutedEventArgs());
 
-        PreviewKeyDown += Window_PreviewKeyDown;
-        KeyDown += Window_KeyDown;
+        vm.S.Obsidian.Launched += () => Dispatcher.BeginInvoke(async () =>
+        {
+            if (!IsActive) return;
+            await Task.Delay(2500); // give Obsidian time to show its window
+            Activate();
+        });
+
+        PreviewKeyDown += Window_PreviewKeyDown;        KeyDown += Window_KeyDown;
         SourceInitialized += (_, _) => UseDarkTitleBar();
         Closing += Window_Closing;
         Loaded += (_, _) => IssueList.Focus();
@@ -382,6 +388,22 @@ public partial class MainWindow : Window
         if (NavOf(sender) is not { } nav) return;
         var path = _vm.S.Kb.Source(nav.Id).Path;
         if (Directory.Exists(path)) Process.Start("explorer.exe", $"\"{path}\"");
+    }
+
+    void ToggleObsidianSync_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is not { } nav) return;
+        if (!nav.IsSynced && !TaskManager.Kb.ObsidianSync.IsInVault(_vm.S.Kb.Source(nav.Id).Path))
+        {
+            Dialogs.Info(this, "Obsidian Sync", "Эта папка не находится внутри хранилища Obsidian (не найдена папка .obsidian ни в ней, ни выше).");
+            return;
+        }
+        _vm.SetObsidianSync(nav.Id, !nav.IsSynced);
+    }
+
+    void SyncKbNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (NavOf(sender) is { } nav) _vm.SyncKbNow(nav.Id);
     }
 
     void RemoveKbSource_Click(object sender, RoutedEventArgs e)

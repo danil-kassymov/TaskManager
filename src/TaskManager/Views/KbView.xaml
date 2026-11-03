@@ -78,6 +78,9 @@
                         <TextBlock Text="{Binding SourceName}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding SourcePath}" Foreground="{StaticResource Text3}" FontSize="11.5"
                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
+                        <TextBlock Text="⟳ Obsidian Sync" Foreground="{StaticResource Accent}" FontSize="11.5"
+                                   ToolTip="После изменений хранилище откроется в Obsidian (если оно закрыто), и Obsidian Sync загрузит правки"
+                                   Visibility="{Binding SourceSync, Converter={StaticResource Visible}}" />
                     </StackPanel>
                 </DockPanel>
             </Border>

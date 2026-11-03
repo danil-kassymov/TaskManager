@@ -11,6 +11,8 @@ public sealed class KbSource
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
     public long Sort { get; set; }
+    /// <summary>Open the Obsidian vault after changes so Obsidian Sync uploads them.</summary>
+    public bool ObsidianSync { get; set; }
 }
 
 /// <summary>A markdown file inside a source. <see cref="Path"/> is relative to the source root, with '/' separators.</summary>
@@ -34,6 +36,14 @@ public sealed partial class KnowledgeBase(Db db)
     // Parsed tags and lower-cased text per file, invalidated by modification time.
     readonly Dictionary<string, (DateTime Modified, string[] Tags, string Text)> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Raised after TaskManager itself changed files of a source (used to trigger Obsidian Sync).</summary>
+    public Action<KbSource>? Changed { get; set; }
+
+    void Touched(long sourceId)
+    {
+        if (Changed is { } handler) handler(Source(sourceId));
+    }
+
     // ---------------- Sources ----------------
 
     public List<KbSource> Sources() =>
@@ -51,10 +61,15 @@ public sealed partial class KnowledgeBase(Db db)
             throw new InvalidOperationException($"Папка уже добавлена: {full}");
         name = string.IsNullOrWhiteSpace(name) ? new DirectoryInfo(full).Name : name.Trim();
         var sort = db.Conn.ExecuteScalar<long>("SELECT COALESCE(MAX(sort), 0) + 1 FROM kb_sources");
+        var sync = TaskManager.Kb.ObsidianSync.IsInVault(full); // folders of an Obsidian vault sync by default
         var id = db.Conn.ExecuteScalar<long>(
-            "INSERT INTO kb_sources(name, path, sort) VALUES (@name, @full, @sort) RETURNING id", new { name, full, sort });
+            "INSERT INTO kb_sources(name, path, sort, obsidian_sync) VALUES (@name, @full, @sort, @sync) RETURNING id",
+            new { name, full, sort, sync });
         return Source(id);
     }
+
+    public void SetObsidianSync(long id, bool enabled) =>
+        db.Conn.Execute("UPDATE kb_sources SET obsidian_sync=@enabled WHERE id=@id", new { id, enabled });
 
     public void RenameSource(long id, string name) =>
         db.Conn.Execute("UPDATE kb_sources SET name=@name WHERE id=@id", new { id, name = name.Trim() });
@@ -174,6 +189,7 @@ public sealed partial class KnowledgeBase(Db db)
         var full = Resolve(sourceId, rel);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);
         File.WriteAllText(full, content, new UTF8Encoding(false));
+        Touched(sourceId);
     }
 
     static readonly char[] Invalid = System.IO.Path.GetInvalidFileNameChars();
@@ -194,6 +210,7 @@ public sealed partial class KnowledgeBase(Db db)
         var full = System.IO.Path.Combine(dir, name + ".md");
         for (var i = 2; File.Exists(full); i++) full = System.IO.Path.Combine(dir, $"{name} {i}.md");
         File.WriteAllText(full, content, new UTF8Encoding(false));
+        Touched(sourceId);
         return Load(Source(sourceId), full)!;
     }
 
@@ -202,6 +219,7 @@ public sealed partial class KnowledgeBase(Db db)
         var full = System.IO.Path.Combine(Resolve(sourceId, parent), SafeName(name));
         Resolve(sourceId, RelOf(Source(sourceId).Path, full)); // validates
         Directory.CreateDirectory(full);
+        Touched(sourceId);
         return RelOf(Source(sourceId).Path, full);
     }
 
@@ -222,6 +240,7 @@ public sealed partial class KnowledgeBase(Db db)
         else File.Move(full, target);
         var newRel = RelOf(Source(sourceId).Path, target);
         RewriteLinks(sourceId, rel, newRel, isDir);
+        Touched(sourceId);
         return newRel;
     }
 
@@ -240,6 +259,7 @@ public sealed partial class KnowledgeBase(Db db)
         else File.Move(full, dest);
         var newRel = RelOf(Source(sourceId).Path, dest);
         RewriteLinks(sourceId, rel, newRel, isDir);
+        Touched(sourceId);
         return newRel;
     }
 
@@ -273,6 +293,7 @@ public sealed partial class KnowledgeBase(Db db)
         rel = Normalize(rel);
         db.Conn.Execute("DELETE FROM issue_links WHERE source_id = @sourceId AND (path = @rel OR path LIKE @prefix ESCAPE '\\')",
             new { sourceId, rel, prefix = LikeEscape(rel) + "/%" });
+        Touched(sourceId);
     }
 
     /// <summary>Words must all be present in the title, path or text; tag filters by exact tag.</summary>

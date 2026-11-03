@@ -23,13 +23,13 @@ public sealed record KbEntryInfo(string Source, string Path, string Title, strin
 /// Everything the MCP tools do, on top of the same repositories the desktop app uses.
 /// One SQLite connection is not thread-safe, so every call takes a lock.
 /// </summary>
-public sealed partial class TaskService(Db db, AppPaths paths)
+public sealed partial class TaskService(Db db, AppPaths paths, ObsidianSync? obsidian = null)
 {
     readonly object _lock = new();
     readonly ProjectRepository _projects = new(db);
     readonly IssueRepository _issues = new(db);
     readonly LabelRepository _labels = new(db);
-    readonly KnowledgeBase _kb = new(db);
+    readonly KnowledgeBase _kb = new(db) { Changed = obsidian is null ? null : obsidian.Schedule };
 
     T Locked<T>(Func<T> f)
     {
@@ -174,7 +174,7 @@ public sealed partial class TaskService(Db db, AppPaths paths)
     public List<object> KbSources() => Locked(() =>
         _kb.Sources().Select(s => (object)new
         {
-            id = s.Id, name = s.Name, path = s.Path, exists = Directory.Exists(s.Path),
+            id = s.Id, name = s.Name, path = s.Path, exists = Directory.Exists(s.Path), obsidian_sync = s.ObsidianSync,
             entries = Directory.Exists(s.Path) ? _kb.Entries(s.Id).Count : 0,
         }).ToList());
 

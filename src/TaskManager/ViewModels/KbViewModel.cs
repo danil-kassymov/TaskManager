@@ -50,6 +50,7 @@ public sealed partial class KbViewModel : ObservableObject
     [ObservableProperty] private string _sourceName = "";
     [ObservableProperty] private string _sourcePath = "";
     [ObservableProperty] private bool _sourceMissing;
+    [ObservableProperty] private bool _sourceSync;
     [ObservableProperty] private string _filter = "";
     [ObservableProperty] private string? _tagFilter;
     [ObservableProperty] private KbEntryViewModel? _entry;
@@ -80,6 +81,7 @@ public sealed partial class KbViewModel : ObservableObject
         SourceId = s.Id;
         SourceName = s.Name;
         SourcePath = s.Path;
+        SourceSync = s.ObsidianSync;
         _signature = "";
         _expanded.Clear();
         Filter = "";

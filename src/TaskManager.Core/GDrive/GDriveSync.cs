@@ -27,10 +27,10 @@ public sealed record SyncResult(int Uploaded, int Downloaded, int DeletedLocal, 
 /// deletions are propagated (local → .tm-trash, Drive → Drive trash), and when both sides changed
 /// both versions are kept ("… (конфликт …)").
 /// </summary>
-public sealed class GDriveSync(Db db, IDriveApi drive)
+public sealed class GDriveSync(Db db, IDriveApi drive, long maxFileSize = GDriveSync.DefaultMaxFileSize)
 {
     public const string LocalTrash = ".tm-trash";
-    const long MaxFileSize = 100L * 1024 * 1024;
+    public const long DefaultMaxFileSize = 100L * 1024 * 1024;
 
     sealed class State
     {
@@ -52,12 +52,15 @@ public sealed class GDriveSync(Db db, IDriveApi drive)
     string _root = "";
     Dictionary<string, State> _state = null!;
     Dictionary<string, DriveItem> _remoteFolders = null!;
+    // Too large on either side: ignored entirely this pass, so it never looks deleted to the other side.
+    HashSet<string> _ignored = null!;
     int _up, _down, _delLocal, _delRemote, _conflicts, _skipped;
 
     public async Task<SyncResult> Run(long sourceId, CancellationToken ct)
     {
         _sourceId = sourceId;
         _up = _down = _delLocal = _delRemote = _conflicts = _skipped = 0;
+        _ignored = new(StringComparer.OrdinalIgnoreCase);
         var folderId = db.Conn.ExecuteScalar<string?>("SELECT folder_id FROM gdrive_sources WHERE source_id=@sourceId", new { sourceId })
                        ?? throw new InvalidOperationException("Для источника не настроен Google Диск");
         _root = db.Conn.ExecuteScalar<string?>("SELECT path FROM kb_sources WHERE id=@sourceId", new { sourceId })
@@ -85,7 +88,8 @@ public sealed class GDriveSync(Db db, IDriveApi drive)
                 {
                     if (_remoteFolders.TryAdd(path, item)) queue.Enqueue((path, item.Id));
                 }
-                else if (item.Md5 is null || item.Size > MaxFileSize) _skipped++; // Google Docs files have no content to sync
+                else if (item.Md5 is null) _skipped++; // Google Docs files have no content to sync
+                else if (item.Size > maxFileSize) { if (_ignored.Add(path)) _skipped++; }
                 else remoteFiles.TryAdd(path, item); // duplicates: keep the most recently modified
             }
         }
@@ -94,11 +98,12 @@ public sealed class GDriveSync(Db db, IDriveApi drive)
         var localFiles = new Dictionary<string, Local>(StringComparer.OrdinalIgnoreCase);
         var localFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Walk(_root, "", localFiles, localFolders);
+        foreach (var path in _ignored) { localFiles.Remove(path); remoteFiles.Remove(path); }
 
         // ---- Files ----
         var paths = localFiles.Keys.Concat(remoteFiles.Keys)
             .Concat(_state.Values.Where(s => !s.IsFolder).Select(s => s.Path))
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p => p, StringComparer.Ordinal).ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase).Where(p => !_ignored.Contains(p)).OrderBy(p => p, StringComparer.Ordinal).ToList();
         foreach (var path in paths)
         {
             ct.ThrowIfCancellationRequested();
@@ -302,7 +307,7 @@ public sealed class GDriveSync(Db db, IDriveApi drive)
             var name = Path.GetFileName(f);
             if (!IsSyncableName(name)) continue;
             var info = new FileInfo(f);
-            if (info.Length > MaxFileSize) { _skipped++; continue; }
+            if (info.Length > maxFileSize) { if (_ignored.Add(Join(rel, name))) _skipped++; continue; }
             files[Join(rel, name)] = new Local(f, info.Length, info.LastWriteTimeUtc.Ticks);
         }
         foreach (var d in Directory.EnumerateDirectories(dir))

@@ -240,6 +240,26 @@ public sealed class GDriveSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task FilesOverTheLimit_AreIgnored_NotTreatedAsDeleted()
+    {
+        Write("big.md", new string('x', 5000));
+        await Sync(); // synced while under the default limit
+
+        // Another device with a small limit (or the file grew): it must be left alone on both sides.
+        var small = new GDriveSync(_db, _drive, maxFileSize: 1000);
+        var r = await small.Run(_sourceId, CancellationToken.None);
+        Assert.Equal(0, r.DeletedLocal + r.DeletedRemote);
+        Assert.NotNull(Read("big.md"));
+        Assert.NotNull(_drive.Read("big.md"));
+
+        _drive.Add("root", "huge-remote.pdf", text: new string('y', 5000));
+        r = await small.Run(_sourceId, CancellationToken.None);
+        Assert.Equal(0, r.Downloaded);
+        Assert.Null(Read("huge-remote.pdf"));
+        Assert.Equal(2, r.Skipped);
+    }
+
+    [Fact]
     public async Task MissingDriveFolder_FailsClearly()
     {
         await _drive.Trash("root", CancellationToken.None);

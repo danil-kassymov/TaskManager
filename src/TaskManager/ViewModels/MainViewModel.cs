@@ -83,6 +83,7 @@ public sealed partial class MainViewModel : ObservableObject
         _externalTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _externalTimer.Tick += (_, _) => CheckExternalChanges();
         _externalTimer.Start();
+        TaskManager.Markdown.ReadingStyle.Changed += OnReadingStyleChanged;
 
         S.GDrive.Status += (id, msg) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
@@ -400,6 +401,26 @@ public sealed partial class MainViewModel : ObservableObject
         LoadReferenceData();
         Detail?.Refresh();
         Reload();
+    }
+
+    // ---- Reading text size (sidebar control, Ctrl+= / Ctrl+-) ----
+
+    public string ReadingSizeText => TaskManager.Markdown.ReadingStyle.Size.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    public bool ReadingSerif
+    {
+        get => TaskManager.Markdown.ReadingStyle.Serif;
+        set => TaskManager.Markdown.ReadingStyle.Set(TaskManager.Markdown.ReadingStyle.Size, value);
+    }
+
+    [RelayCommand] void TextBigger() => TaskManager.Markdown.ReadingStyle.Bigger();
+    [RelayCommand] void TextSmaller() => TaskManager.Markdown.ReadingStyle.Smaller();
+    [RelayCommand] void TextReset() => TaskManager.Markdown.ReadingStyle.Reset();
+
+    void OnReadingStyleChanged()
+    {
+        OnPropertyChanged(nameof(ReadingSizeText));
+        OnPropertyChanged(nameof(ReadingSerif));
     }
 
     // ---- Knowledge base ----

@@ -44,10 +44,11 @@
             </DockPanel>
         </Border>
 
-        <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="24,18,24,24">
-            <StackPanel>
+        <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="32,22,32,32">
+            <!-- Readable line length on wide screens: the content column is capped and centered -->
+            <StackPanel MaxWidth="900">
                 <!-- Title -->
-                <TextBox x:Name="TitleBox" Style="{StaticResource BareTextBox}" FontSize="21" FontWeight="SemiBold"
+                <TextBox x:Name="TitleBox" Style="{StaticResource BareTextBox}" TextOptions.TextFormattingMode="Ideal" FontWeight="SemiBold"
                          TextWrapping="Wrap" AcceptsReturn="False" Tag="Заголовок задачи"
                          Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" KeyDown="TitleBox_KeyDown" />
 
@@ -150,7 +151,7 @@
                 </DockPanel>
 
                 <TextBox x:Name="Editor" Style="{StaticResource InputTextBox}" AcceptsReturn="True" AcceptsTab="False"
-                         TextWrapping="Wrap" MinHeight="140" FontFamily="{StaticResource MonoFont}" FontSize="13" Padding="10,8"
+                         TextWrapping="Wrap" MinHeight="140" FontFamily="{StaticResource MonoFont}" TextOptions.TextFormattingMode="Ideal" Padding="14,10"
                          Tag="Описание в Markdown. Ctrl+V — вставить скриншот, перетащи картинку, выдели текст и вставь URL для ссылки."
                          Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" SpellCheck.IsEnabled="False"
                          Visibility="{Binding IsEditing, Converter={StaticResource Visible}}"
@@ -159,7 +160,7 @@
                 <Border x:Name="PreviewHost" Background="Transparent" Cursor="IBeam" MinHeight="24"
                         Visibility="{Binding IsEditing, Converter={StaticResource Visible}, ConverterParameter='!'}"
                         MouseLeftButtonDown="Preview_MouseDown" ToolTip="Двойной клик — редактировать">
-                    <RichTextBox x:Name="Preview" IsReadOnly="True" IsDocumentEnabled="True" Background="Transparent"
+                    <RichTextBox x:Name="Preview" TextOptions.TextFormattingMode="Ideal" IsReadOnly="True" IsDocumentEnabled="True" Background="Transparent"
                                  BorderThickness="0" Padding="0" Foreground="{StaticResource Text}"
                                  VerticalScrollBarVisibility="Disabled" FocusVisualStyle="{x:Null}" Cursor="Arrow">
                         <RichTextBox.Template>

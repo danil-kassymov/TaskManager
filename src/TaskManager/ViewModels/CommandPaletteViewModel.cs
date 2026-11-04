@@ -201,6 +201,8 @@ public sealed partial class CommandPaletteViewModel(MainViewModel main) : Observ
                      ("new-project", "Новый проект"), ("new-label", "Новая метка"),
                      ("export", "Экспорт бэкапа…"), ("import", "Импорт бэкапа…"), ("open-data", "Открыть папку с данными"),
                      ("shortcuts", "Горячие клавиши"),
+                     ("text-bigger", "Текст заметок крупнее"), ("text-smaller", "Текст заметок мельче"),
+                     ("text-serif", "Шрифт заметок: с засечками / без"),
                  })
             yield return new PaletteItem { Title = title, Run = () => ViewActions.GetValueOrDefault(key)?.Invoke() };
     }

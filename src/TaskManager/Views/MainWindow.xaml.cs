@@ -25,6 +25,8 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+        ApplyTitleSize();
+        ReadingStyle.Changed += ApplyTitleSize;
         RestoreLayout(vm.S.Settings);
 
         vm.PropertyChanged += Vm_PropertyChanged;
@@ -48,6 +50,9 @@ public partial class MainWindow : Window
         actions["shortcuts"] = () => Shortcuts_Click(this, new RoutedEventArgs());
         actions["delete"] = DeleteCurrent;
         actions["add-kb"] = () => AddKbSource_Click(this, new RoutedEventArgs());
+        actions["text-bigger"] = ReadingStyle.Bigger;
+        actions["text-smaller"] = ReadingStyle.Smaller;
+        actions["text-serif"] = ReadingStyle.ToggleSerif;
 
         PreviewKeyDown += Window_PreviewKeyDown;        KeyDown += Window_KeyDown;
         SourceInitialized += (_, _) => UseDarkTitleBar();
@@ -88,7 +93,7 @@ public partial class MainWindow : Window
             s.Top = bounds.Top;
         }
         s.SidebarWidth = SidebarColumn.ActualWidth;
-        if (_vm.Detail is not null) s.DetailWidth = DetailColumn.ActualWidth;
+        if (_vm.Detail is not null) s.ListWidth = MainColumn.ActualWidth;
     }
 
     [DllImport("dwmapi.dll")]
@@ -109,13 +114,37 @@ public partial class MainWindow : Window
         {
             case nameof(MainViewModel.Detail):
                 var open = _vm.Detail is not null;
-                if (!open && DetailColumn.ActualWidth > 0) _vm.S.Settings.DetailWidth = DetailColumn.ActualWidth;
-                DetailColumn.Width = open ? new GridLength(Math.Max(380, _vm.S.Settings.DetailWidth)) : new GridLength(0);
-                DetailColumn.MinWidth = open ? 340 : 0;
+                LayoutDetail(_vm.Detail is not null);
                 break;
             case nameof(MainViewModel.SelectedRow):
                 if (_vm.SelectedRow is { } row && !_vm.IsBoard) IssueList.ScrollIntoView(row);
                 break;
+        }
+    }
+
+    bool _detailShown;
+
+    /// <summary>With an issue open the list becomes a narrow column and the issue gets the rest of the window.</summary>
+    void LayoutDetail(bool open)
+    {
+        if (open == _detailShown) return;
+        _detailShown = open;
+        var s = _vm.S.Settings;
+        if (open)
+        {
+            // 480 px keeps the list toolbar (filter, view menu, list/board switch) on one line.
+            const double minList = 480;
+            var max = Math.Max(minList, Root.ActualWidth - SidebarColumn.ActualWidth - 480);
+            MainColumn.Width = new GridLength(Math.Clamp(s.ListWidth, minList, max));
+            DetailColumn.Width = new GridLength(1, GridUnitType.Star);
+            DetailColumn.MinWidth = 420;
+        }
+        else
+        {
+            if (MainColumn.ActualWidth > 0) s.ListWidth = MainColumn.ActualWidth;
+            MainColumn.Width = new GridLength(1, GridUnitType.Star);
+            DetailColumn.MinWidth = 0;
+            DetailColumn.Width = new GridLength(0);
         }
     }
 
@@ -142,6 +171,21 @@ public partial class MainWindow : Window
         else if (mods == ModifierKeys.Control && e.Key == Key.N && !OverlayOpen)
         {
             _vm.NewIssue(null);
+            e.Handled = true;
+        }
+        else if (mods == ModifierKeys.Control && e.Key is Key.OemPlus or Key.Add)
+        {
+            ReadingStyle.Bigger();
+            e.Handled = true;
+        }
+        else if (mods == ModifierKeys.Control && e.Key is Key.OemMinus or Key.Subtract)
+        {
+            ReadingStyle.Smaller();
+            e.Handled = true;
+        }
+        else if (mods == ModifierKeys.Control && e.Key is Key.D0 or Key.NumPad0)
+        {
+            ReadingStyle.Reset();
             e.Handled = true;
         }
         else if (mods == ModifierKeys.Control && e.Key == Key.F && !OverlayOpen)
@@ -436,6 +480,23 @@ public partial class MainWindow : Window
             _vm.RemoveKbSource(nav.Id);
     }
 
+    /// <summary>Task titles in lists and on board cards follow the reading text size (13.5 at the default size).</summary>
+    void ApplyTitleSize()
+    {
+        var k = ReadingStyle.Size / ReadingStyle.DefaultSize;
+        var size = Math.Round(13.5 * k * 2) / 2;
+        Resources["RowTitleSize"] = size;
+        Resources["RowKeySize"] = Math.Round(12.5 * k * 2) / 2;
+        Resources["RowHeight"] = Math.Max(36, Math.Round(size * 2.4));
+    }
+
+    void TextBigger_Click(object sender, RoutedEventArgs e) => ReadingStyle.Bigger();
+    void TextSmaller_Click(object sender, RoutedEventArgs e) => ReadingStyle.Smaller();
+    void TextReset_Click(object sender, RoutedEventArgs e) => ReadingStyle.Reset();
+    void TextSerif_Click(object sender, RoutedEventArgs e) => ReadingStyle.ToggleSerif();
+
+    void AppMenu_Opened(object sender, RoutedEventArgs e) => SerifMenuItem.IsChecked = ReadingStyle.Serif;
+
     void OpenData_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(_vm.S.Paths.Root) { UseShellExecute = true });
 
@@ -450,6 +511,7 @@ public partial class MainWindow : Window
         1-4, 0        приоритет / без приоритета
         Delete        удалить задачу
         Ctrl+B        список ↔ канбан
+        Ctrl+= / −    размер текста заметок, Ctrl+0 — обычный
         Esc           закрыть / назад
 
         В редакторе описания:

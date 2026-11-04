@@ -28,12 +28,22 @@ public partial class KbView : UserControl
             TagColor = tag => _entry?.Tags.FirstOrDefault(t => t.Name.Equals(tag, StringComparison.CurrentCultureIgnoreCase))?.Color,
         };
         MarkdownEditing.Attach(Editor, App.Services.Attachments);
-        DataContextChanged += (_, _) =>
+        ApplyReadingStyle();
+        // Size/font changes (Ctrl+= / Ctrl+-) apply to every open view at once.
+        ReadingStyle.Changed += () => { ApplyReadingStyle(); RenderPreview(); };        DataContextChanged += (_, _) =>
         {
             if (_vm is not null) _vm.PropertyChanged -= Vm_PropertyChanged;
             _vm = DataContext as KbViewModel;
             if (_vm is not null) _vm.PropertyChanged += Vm_PropertyChanged;
         };
+    }
+
+    void ApplyReadingStyle()
+    {
+        Editor.FontSize = ReadingStyle.EditorSize;
+        TextBlock.SetLineHeight(Editor, ReadingStyle.LineHeight(ReadingStyle.EditorSize));
+        TextBlock.SetLineStackingStrategy(Editor, LineStackingStrategy.BlockLineHeight);
+        TitleBox.FontSize = Math.Round(ReadingStyle.Size * 1.5);
     }
 
     /// <summary>Images referenced relatively from a .md file (e.g. "img/a.png") resolve against that file's folder.</summary>

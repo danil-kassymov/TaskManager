@@ -46,23 +46,34 @@ public sealed partial class MarkdownRenderer
     /// <summary>Called with the source offset of the <c>[ ]</c> of a clicked task-list checkbox.</summary>
     public Action<int>? ToggleTask { get; init; }
 
-    static readonly Brush TextBrush = Palette.Brush("#E6E6E8");
-    static readonly Brush DimBrush = Palette.Brush("#9A9CA5");
-    static readonly Brush CodeBg = Palette.Brush("#1E1F24");
-    static readonly Brush BorderBrush = Palette.Brush("#2E3036");
-    static readonly FontFamily Mono = new("Cascadia Mono, Cascadia Code, Consolas");
-    static readonly FontFamily Ui = new("Segoe UI Variable Text, Segoe UI");
+    // Body text is a touch softer than pure white (less glare on the dark background), headings are brighter.
+    static readonly Brush TextBrush = Palette.Brush("#DCDDE1");
+    static readonly Brush HeadingBrush = Palette.Brush("#F4F4F6");
+    static readonly Brush DimBrush = Palette.Brush("#A9ABB3");
+    static readonly Brush LinkBrush = Palette.Brush("#9AA3F5");
+    static readonly Brush CodeFg = Palette.Brush("#E8C48A");
+    static readonly Brush CodeBg = Palette.Brush("#24252B");
+    static readonly Brush CodeBlockBg = Palette.Brush("#1A1B1F");
+    static readonly Brush BorderBrush = Palette.Brush("#30323A");
+    static readonly Brush QuoteBar = Palette.Brush("#4A5180");
+    static FontFamily Mono => ReadingStyle.Mono;
+
+    /// <summary>Base font size of the document being rendered; everything else is relative to it.</summary>
+    double _s = ReadingStyle.DefaultSize;
 
     public FlowDocument Render(string markdown)
     {
+        _s = ReadingStyle.Size;
         var doc = new FlowDocument
         {
             PagePadding = new Thickness(0),
-            FontFamily = Ui,
-            FontSize = 14,
+            FontFamily = ReadingStyle.Family,
+            FontSize = _s,
             Foreground = TextBrush,
             TextAlignment = TextAlignment.Left,
-            LineHeight = 21,
+            LineHeight = ReadingStyle.LineHeight(_s),
+            // MaxHeight: lines are at least LineHeight tall but grow for inline UI (checkboxes, images) instead of clipping them.
+            LineStackingStrategy = LineStackingStrategy.MaxHeight,
         };
         var ast = Markdig.Markdown.Parse(markdown ?? "", Pipeline);
         foreach (var b in ast)
@@ -76,18 +87,21 @@ public sealed partial class MarkdownRenderer
         {
             case HeadingBlock h:
             {
+                var size = _s * h.Level switch { 1 => 1.75, 2 => 1.4, 3 => 1.18, _ => 1.0 };
                 var p = new Paragraph
                 {
-                    FontSize = h.Level switch { 1 => 22, 2 => 18, 3 => 16, _ => 14 },
-                    FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(0, h.Level <= 2 ? 14 : 10, 0, 6),
+                    FontSize = size,
+                    LineHeight = Math.Round(size * 1.3),
+                    FontWeight = h.Level <= 2 ? FontWeights.Bold : FontWeights.SemiBold,
+                    Foreground = HeadingBrush,
+                    Margin = new Thickness(0, _s * (h.Level <= 2 ? 1.4 : 1.0), 0, _s * 0.45),
                 };
                 AddInlines(p.Inlines, h.Inline);
                 return p;
             }
             case ParagraphBlock pb:
             {
-                var p = new Paragraph { Margin = new Thickness(0, 0, 0, 8) };
+                var p = new Paragraph { Margin = new Thickness(0, 0, 0, _s * 0.8) };
                 AddInlines(p.Inlines, pb.Inline);
                 return p;
             }
@@ -97,8 +111,9 @@ public sealed partial class MarkdownRenderer
                 var list = new List
                 {
                     MarkerStyle = isTasks ? TextMarkerStyle.None : lb.IsOrdered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc,
-                    Margin = new Thickness(0, 0, 0, 8),
-                    Padding = new Thickness(isTasks ? 4 : 22, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 0, _s * 0.8),
+                    Padding = new Thickness(isTasks ? 2 : _s * 1.6, 0, 0, 0),
+                    MarkerOffset = _s * 0.5,
                 };
                 if (lb.IsOrdered && int.TryParse(lb.OrderedStart, out var start)) list.StartIndex = start;
                 foreach (var item in lb.OfType<ListItemBlock>())
@@ -107,7 +122,7 @@ public sealed partial class MarkdownRenderer
                     foreach (var child in item)
                         if (RenderBlock(child) is { } cb)
                         {
-                            cb.Margin = new Thickness(0, 1, 0, 1);
+                            cb.Margin = new Thickness(0, _s * 0.12, 0, _s * 0.12);
                             li.Blocks.Add(cb);
                         }
                     list.ListItems.Add(li);
@@ -118,10 +133,10 @@ public sealed partial class MarkdownRenderer
             {
                 var s = new Section
                 {
-                    BorderBrush = BorderBrush,
+                    BorderBrush = QuoteBar,
                     BorderThickness = new Thickness(3, 0, 0, 0),
-                    Padding = new Thickness(12, 0, 0, 0),
-                    Margin = new Thickness(0, 0, 0, 8),
+                    Padding = new Thickness(_s * 0.9, _s * 0.1, 0, _s * 0.1),
+                    Margin = new Thickness(0, 0, 0, _s * 0.8),
                     Foreground = DimBrush,
                 };
                 foreach (var child in qb)
@@ -133,11 +148,13 @@ public sealed partial class MarkdownRenderer
                 var p = new Paragraph
                 {
                     FontFamily = Mono,
-                    FontSize = 12.5,
-                    LineHeight = 18,
-                    Background = CodeBg,
-                    Padding = new Thickness(10, 8, 10, 8),
-                    Margin = new Thickness(0, 0, 0, 8),
+                    FontSize = _s * 0.86,
+                    LineHeight = Math.Round(_s * 0.86 * 1.55),
+                    Background = CodeBlockBg,
+                    BorderBrush = BorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(_s * 0.9, _s * 0.6, _s * 0.9, _s * 0.6),
+                    Margin = new Thickness(0, _s * 0.1, 0, _s * 0.9),
                 };
                 var lines = cb.Lines.ToString().Replace("\r", "").TrimEnd('\n').Split('\n');
                 for (var i = 0; i < lines.Length; i++)
@@ -152,8 +169,9 @@ public sealed partial class MarkdownRenderer
                 {
                     BorderBrush = BorderBrush,
                     BorderThickness = new Thickness(0, 0, 0, 1),
-                    Margin = new Thickness(0, 4, 0, 12),
+                    Margin = new Thickness(0, _s * 0.5, 0, _s * 1.2),
                     FontSize = 2,
+                    LineHeight = 2,
                 };
             case Markdig.Extensions.Tables.Table t:
                 return RenderTable(t);
@@ -176,7 +194,7 @@ public sealed partial class MarkdownRenderer
 
     Table RenderTable(Markdig.Extensions.Tables.Table t)
     {
-        var table = new Table { CellSpacing = 0, Margin = new Thickness(0, 0, 0, 8), BorderBrush = BorderBrush, BorderThickness = new Thickness(1, 1, 0, 0) };
+        var table = new Table { CellSpacing = 0, Margin = new Thickness(0, 0, 0, _s * 0.9), BorderBrush = BorderBrush, BorderThickness = new Thickness(1, 1, 0, 0) };
         var cols = t.ColumnDefinitions.Count;
         for (var i = 0; i < cols; i++) table.Columns.Add(new TableColumn());
         var group = new TableRowGroup();
@@ -194,7 +212,7 @@ public sealed partial class MarkdownRenderer
                 {
                     BorderBrush = BorderBrush,
                     BorderThickness = new Thickness(0, 0, 1, 1),
-                    Padding = new Thickness(8, 4, 8, 4),
+                    Padding = new Thickness(_s * 0.6, _s * 0.3, _s * 0.6, _s * 0.3),
                 };
                 foreach (var child in cell)
                     if (RenderBlock(child) is { } cb)
@@ -236,7 +254,8 @@ public sealed partial class MarkdownRenderer
                 return new Run(code.Content)
                 {
                     FontFamily = Mono,
-                    FontSize = 12.5,
+                    FontSize = _s * 0.88,
+                    Foreground = CodeFg,
                     Background = CodeBg,
                 };
             case LinkInline { IsImage: true } img:
@@ -246,7 +265,7 @@ public sealed partial class MarkdownRenderer
                 var h = MakeLink(link.Url ?? "");
                 if (TaskManager.Kb.KnowledgeBase.TryParseLink(link.Url ?? "", out _, out var rel))
                 {
-                    h.Inlines.Add(new Run("📄 ") { FontSize = 12 });
+                    h.Inlines.Add(new Run("📄 ") { FontSize = _s * 0.85 });
                     h.ToolTip = rel;
                 }
                 AddInlines(h.Inlines, link);
@@ -326,7 +345,7 @@ public sealed partial class MarkdownRenderer
     {
         var h = new Hyperlink
         {
-            Foreground = Palette.Accent,
+            Foreground = LinkBrush,
             TextDecorations = null,
             Cursor = Cursors.Hand,
             ToolTip = url.StartsWith("issue:") ? null : url,
@@ -355,7 +374,7 @@ public sealed partial class MarkdownRenderer
                 MaxHeight = 520,
                 Cursor = Cursors.Hand,
                 ToolTip = title ?? "Открыть изображение",
-                Margin = new Thickness(0, 4, 0, 4),
+                Margin = new Thickness(0, _s * 0.4, 0, _s * 0.4),
             };
             image.MouseLeftButtonUp += (_, e) =>
             {
@@ -375,13 +394,19 @@ public sealed partial class MarkdownRenderer
         var box = new CheckBox
         {
             IsChecked = task.Checked,
-            Margin = new Thickness(0, 0, 6, -4),
+            Margin = new Thickness(0, 0, _s * 0.45, 0),
+            // The Fluent check glyph is a font icon sized by FontSize: don't inherit the document's (larger) text size.
+            FontSize = 14,
+            FontFamily = new FontFamily("Segoe UI"),
             MinWidth = 0,
             MinHeight = 0,
             Padding = new Thickness(0),
             Focusable = false,
             Cursor = Cursors.Hand,
         };
+        // Line height is inherited too and would shift the glyph inside the box: reset it to auto.
+        box.SetValue(Block.LineHeightProperty, double.NaN);
+        box.SetValue(Block.LineStackingStrategyProperty, LineStackingStrategy.MaxHeight);
         var offset = task.Span.Start;
         box.Click += (_, _) => ToggleTask?.Invoke(offset);
         return new InlineUIContainer(box) { BaselineAlignment = BaselineAlignment.Center };

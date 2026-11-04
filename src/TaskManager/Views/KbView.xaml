@@ -123,6 +123,7 @@
                           SelectedItemChanged="Tree_SelectedItemChanged" AllowDrop="True" Drop="Tree_Drop" DragOver="Tree_DragOver"
                           PreviewMouseLeftButtonDown="Tree_PreviewMouseDown" PreviewMouseMove="Tree_PreviewMouseMove"
                           PreviewMouseLeftButtonUp="Tree_PreviewMouseUp"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding IsFiltering, Converter={StaticResource Visible}, ConverterParameter='!'}">
                     <TreeView.ContextMenu>
                         <ContextMenu>
@@ -137,15 +138,22 @@
                             <Setter Property="ContextMenu" Value="{StaticResource NodeMenu}" />
                             <Setter Property="Padding" Value="2,1" />
                             <Setter Property="MinHeight" Value="28" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         </Style>
                     </TreeView.ItemContainerStyle>
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate DataType="{x:Type vm:KbNode}" ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <!-- The tree never scrolls sideways: long names are trimmed so icons and nesting stay visible. -->
+                            <Grid Background="Transparent" ToolTip="{Binding Name}" ToolTipService.InitialShowDelay="700">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="Icon" Text="📄" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource TagDots}" />
-                            </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <ContentPresenter Grid.Column="2" Content="{Binding}" ContentTemplate="{StaticResource TagDots}" Margin="0,0,6,0" />
+                            </Grid>
                             <HierarchicalDataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding IsFolder}" Value="True">
                                     <Setter TargetName="Icon" Property="Text" Value="📁" />
@@ -218,7 +226,7 @@
 
                 <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="28,18,28,24">
                     <StackPanel MaxWidth="900" HorizontalAlignment="Stretch">
-                        <TextBox x:Name="TitleBox" Style="{StaticResource BareTextBox}" FontSize="22" FontWeight="SemiBold"
+                        <TextBox x:Name="TitleBox" Style="{StaticResource BareTextBox}" TextOptions.TextFormattingMode="Ideal" FontWeight="SemiBold"
                                  TextWrapping="Wrap" Tag="Название записи" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="TitleBox_KeyDown" LostKeyboardFocus="TitleBox_LostFocus" ToolTip="Название = имя файла" />
 
@@ -281,7 +289,7 @@
                         </DockPanel>
 
                         <TextBox x:Name="Editor" Style="{StaticResource InputTextBox}" AcceptsReturn="True" TextWrapping="Wrap"
-                                 MinHeight="240" FontFamily="{StaticResource MonoFont}" FontSize="13" Padding="10,8"
+                                 MinHeight="240" FontFamily="{StaticResource MonoFont}" TextOptions.TextFormattingMode="Ideal" Padding="14,10"
                                  Tag="Markdown. #теги прямо в тексте, Ctrl+V — вставить скриншот, ссылки на задачи вида TM-12."
                                  Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}" SpellCheck.IsEnabled="False"
                                  Visibility="{Binding IsEditing, Converter={StaticResource Visible}}"
@@ -289,7 +297,7 @@
 
                         <Border Background="Transparent" MinHeight="24" MouseLeftButtonDown="Preview_MouseDown" ToolTip="Двойной клик — редактировать"
                                 Visibility="{Binding IsEditing, Converter={StaticResource Visible}, ConverterParameter='!'}">
-                            <RichTextBox x:Name="Preview" IsReadOnly="True" IsDocumentEnabled="True" Background="Transparent"
+                            <RichTextBox x:Name="Preview" TextOptions.TextFormattingMode="Ideal" IsReadOnly="True" IsDocumentEnabled="True" Background="Transparent"
                                          BorderThickness="0" Padding="0" VerticalScrollBarVisibility="Disabled" FocusVisualStyle="{x:Null}" Cursor="Arrow">
                                 <RichTextBox.Template>
                                     <ControlTemplate TargetType="RichTextBox">

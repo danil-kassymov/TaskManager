@@ -84,7 +84,7 @@ public sealed partial class KbViewModel : ObservableObject
         SourcePath = s.Path;
         UpdateGDriveStatus();
         _signature = "";
-        _expanded.Clear();
+        LoadExpanded();
         Filter = "";
         TagFilter = null;
         SourceMissing = !Directory.Exists(s.Path);
@@ -116,7 +116,8 @@ public sealed partial class KbViewModel : ObservableObject
             : $"☁ Google Диск · {info.FolderName}";
     }
 
-    void Schedule()    {
+    void Schedule()
+    {
         _refreshTimer.Stop();
         _refreshTimer.Start();
     }
@@ -138,8 +139,22 @@ public sealed partial class KbViewModel : ObservableObject
 
     public void RememberExpanded(KbNode node, bool expanded)
     {
-        if (expanded) _expanded.Add(node.Path);
-        else _expanded.Remove(node.Path);
+        if (SourceId == 0) return;
+        if (expanded ? _expanded.Add(node.Path) : _expanded.Remove(node.Path)) SaveExpanded();
+    }
+
+    // Expanded folders are kept per source in the settings, so they survive switching views and restarts.
+    string ExpandedKey => SourceId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    void LoadExpanded()
+    {
+        _expanded.Clear();
+        if (_main.S.Settings.KbExpanded.TryGetValue(ExpandedKey, out var saved)) _expanded.UnionWith(saved);
+    }
+
+    void SaveExpanded()
+    {
+        if (SourceId != 0) _main.S.Settings.KbExpanded[ExpandedKey] = _expanded.Order(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public string ColorOf(string tag) => _colors.TryGetValue(tag, out var c) ? c : "#9A9CA5";
@@ -159,6 +174,9 @@ public sealed partial class KbViewModel : ObservableObject
         SourceMissing = false;
         var entries = Kb.Entries(SourceId);
         var folders = Kb.Folders(SourceId);
+        // Forget folders that no longer exist (deleted or renamed outside the app).
+        var existing = folders.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (_expanded.RemoveWhere(f => !existing.Contains(f)) > 0) SaveExpanded();
         _colors = Kb.TagColors(entries.SelectMany(e => e.Tags));
         EntryCount = entries.Count;
 
@@ -254,6 +272,7 @@ public sealed partial class KbViewModel : ObservableObject
             _expanded.Add(folder);
             folder = KnowledgeBase.FolderOf(folder);
         }
+        SaveExpanded();
         foreach (var n in AllNodes(Tree))
         {
             if (n.IsFolder && _expanded.Contains(n.Path)) n.IsExpanded = true;
@@ -289,6 +308,7 @@ public sealed partial class KbViewModel : ObservableObject
             var rel = Kb.CreateFolder(SourceId, dir, name);
             if (dir.Length > 0) _expanded.Add(dir);
             _expanded.Add(rel);
+            SaveExpanded();
             Refresh();
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
@@ -305,7 +325,7 @@ public sealed partial class KbViewModel : ObservableObject
                                                  Entry.Path.StartsWith(node.Path + "/", StringComparison.OrdinalIgnoreCase));
             Entry?.Flush();
             var newRel = Kb.Rename(SourceId, node.Path, newName);
-            if (node.IsFolder && _expanded.Remove(node.Path)) _expanded.Add(newRel);
+            if (node.IsFolder && _expanded.Remove(node.Path)) { _expanded.Add(newRel); SaveExpanded(); }
             if (wasOpen && Entry is not null)
             {
                 var openPath = node.IsFolder ? newRel + Entry.Path[node.Path.Length..] : newRel;
@@ -329,7 +349,7 @@ public sealed partial class KbViewModel : ObservableObject
             Entry?.Flush();
             var openPath = Entry?.Path;
             var newRel = Kb.Move(SourceId, node.Path, targetFolder?.Path ?? "");
-            if (targetFolder is not null) _expanded.Add(targetFolder.Path);
+            if (targetFolder is not null) { _expanded.Add(targetFolder.Path); SaveExpanded(); }
             Refresh();
             if (openPath is not null && openPath.Equals(node.Path, StringComparison.OrdinalIgnoreCase))
             {

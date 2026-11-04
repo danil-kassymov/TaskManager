@@ -24,6 +24,16 @@ public partial class IssueDetailView : UserControl
             IsProjectKey = key => _vm?.Projects.Any(p => p.Key.Equals(key, StringComparison.OrdinalIgnoreCase)) == true,
         };
         MarkdownEditing.Attach(Editor, App.Services.Attachments, InsertKbLink);        DataContextChanged += OnDataContextChanged;
+        ApplyReadingStyle();
+        // Size/font changes (Ctrl+= / Ctrl+-) apply to every open view at once.
+        ReadingStyle.Changed += () => { ApplyReadingStyle(); RenderPreview(); };    }
+
+    void ApplyReadingStyle()
+    {
+        Editor.FontSize = ReadingStyle.EditorSize;
+        TextBlock.SetLineHeight(Editor, ReadingStyle.LineHeight(ReadingStyle.EditorSize));
+        TextBlock.SetLineStackingStrategy(Editor, LineStackingStrategy.BlockLineHeight);
+        TitleBox.FontSize = Math.Round(ReadingStyle.Size * 1.5);
     }
 
     static MainViewModel? Main => Application.Current.MainWindow?.DataContext as MainViewModel;

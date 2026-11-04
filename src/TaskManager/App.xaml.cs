@@ -16,6 +16,13 @@ public partial class App : Application
         DispatcherUnhandledException += OnUnhandledException;
 
         Services = new AppServices(AppPaths.Default());
+        var settings = Services.Settings;
+        TaskManager.Markdown.ReadingStyle.Set(settings.ReadingSize, settings.ReadingSerif);
+        TaskManager.Markdown.ReadingStyle.Changed += () =>
+        {
+            settings.ReadingSize = TaskManager.Markdown.ReadingStyle.Size;
+            settings.ReadingSerif = TaskManager.Markdown.ReadingStyle.Serif;
+        };
         var vm = new MainViewModel(Services);
         MainWindow = new MainWindow(vm);
         MainWindow.Show();

@@ -43,7 +43,7 @@
 
         <!-- List row -->
         <DataTemplate x:Key="IssueRowTemplate" DataType="{x:Type vm:IssueRow}">
-            <Grid Height="36" Margin="12,0,12,0" Background="Transparent">
+            <Grid Height="{DynamicResource RowHeight}" Margin="12,0,12,0" Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="26" />
                     <ColumnDefinition Width="Auto" MinWidth="58" />
@@ -54,11 +54,11 @@
                     <ColumnDefinition Width="64" />
                 </Grid.ColumnDefinitions>
                 <c:PriorityGlyph Priority="{Binding Priority}" VerticalAlignment="Center" ToolTip="{Binding Priority, Converter={StaticResource EnumName}}" />
-                <TextBlock Grid.Column="1" Text="{Binding Key}" Foreground="{StaticResource Text3}" FontSize="12.5"
+                <TextBlock Grid.Column="1" Text="{Binding Key}" Foreground="{StaticResource Text3}" FontSize="{DynamicResource RowKeySize}"
                            VerticalAlignment="Center" Margin="0,0,8,0" />
                 <c:StatusGlyph Grid.Column="2" Status="{Binding Status}" VerticalAlignment="Center" ToolTip="{Binding StatusName}" />
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,8,0">
-                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Title}" FontSize="{DynamicResource RowTitleSize}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     <Border Margin="8,0,0,0" Padding="5,0" CornerRadius="4" Background="{StaticResource Panel2}"
                             Visibility="{Binding SubProgress, Converter={StaticResource Visible}}" VerticalAlignment="Center"
                             ToolTip="Подзадачи">
@@ -70,7 +70,7 @@
                         <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
-                <TextBlock Grid.Column="6" Text="{Binding Updated}" Foreground="{StaticResource Text3}" FontSize="12"
+                <TextBlock Grid.Column="6" Text="{Binding Updated}" Foreground="{StaticResource Text3}" FontSize="{DynamicResource RowKeySize}"
                            HorizontalAlignment="Right" VerticalAlignment="Center" />
             </Grid>
         </DataTemplate>
@@ -85,7 +85,7 @@
                         <TextBlock Text="{Binding Key}" Foreground="{StaticResource Text3}" FontSize="12" />
                         <c:PriorityGlyph Priority="{Binding Priority}" HorizontalAlignment="Right" />
                     </Grid>
-                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Margin="0,4,0,0" MaxHeight="60" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Title}" FontSize="{DynamicResource RowTitleSize}" TextWrapping="Wrap" Margin="0,4,0,0" MaxHeight="90" TextTrimming="CharacterEllipsis" />
                     <WrapPanel Margin="0,6,0,0" Visibility="{Binding HasLabels, Converter={StaticResource Visible}}">
                         <ItemsControl ItemsSource="{Binding Labels}" ItemTemplate="{StaticResource LabelPill}">
                             <ItemsControl.ItemsPanel>
@@ -119,7 +119,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="SidebarColumn" Width="220" MinWidth="160" MaxWidth="360" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition x:Name="MainColumn" Width="*" MinWidth="320" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition x:Name="DetailColumn" Width="0" />
             </Grid.ColumnDefinitions>
@@ -137,7 +137,7 @@
                                 ToolTip="Меню" Click="AppMenu_Click">
                             <TextBlock Text="⋯" FontSize="15" />
                             <Button.ContextMenu>
-                                <ContextMenu>
+                                <ContextMenu Opened="AppMenu_Opened">
                                     <MenuItem Header="Новый проект…" Click="NewProject_Click" />
                                     <MenuItem Header="Новая метка…" Click="NewLabel_Click" />
                                     <Separator />
@@ -146,6 +146,13 @@
                                     <MenuItem Header="Открыть папку с данными" Click="OpenData_Click" />
                                     <MenuItem Header="Google Диск…" Click="GoogleAccount_Click" />
                                     <Separator />
+                                    <MenuItem Header="Текст заметок">
+                                        <MenuItem Header="Крупнее" InputGestureText="Ctrl+=" Click="TextBigger_Click" StaysOpenOnClick="True" />
+                                        <MenuItem Header="Мельче" InputGestureText="Ctrl+−" Click="TextSmaller_Click" StaysOpenOnClick="True" />
+                                        <MenuItem Header="Обычный размер" InputGestureText="Ctrl+0" Click="TextReset_Click" />
+                                        <Separator />
+                                        <MenuItem x:Name="SerifMenuItem" Header="Шрифт с засечками (Georgia)" IsCheckable="True" Click="TextSerif_Click" />
+                                    </MenuItem>
                                     <MenuItem Header="Горячие клавиши" Click="Shortcuts_Click" />
                                 </ContextMenu>
                             </Button.ContextMenu>
@@ -166,6 +173,29 @@
                     </Button>
                 </StackPanel>
 
+                <!-- Reading text size: always at hand at the bottom of the sidebar -->
+                <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="10,6">
+                    <DockPanel>
+                        <TextBlock Text="Текст" Foreground="{StaticResource Text3}" FontSize="12" VerticalAlignment="Center" Margin="4,0,8,0"
+                                   ToolTip="Размер текста задач и заметок (Ctrl+= / Ctrl+− / Ctrl+0)" />
+                        <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding ReadingSerif}" Padding="7,1" FontSize="12.5"
+                                      FontFamily="Georgia" Content="Аа" ToolTip="Шрифт с засечками (Georgia)" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource FlatButton}" Command="{Binding TextSmallerCommand}" Padding="8,2"
+                                    ToolTip="Мельче (Ctrl+−)">
+                                <TextBlock Text="A−" FontSize="11.5" />
+                            </Button>
+                            <Button Style="{StaticResource FlatButton}" Command="{Binding TextResetCommand}" Padding="4,2" MinWidth="34"
+                                    HorizontalContentAlignment="Center" ToolTip="Обычный размер (Ctrl+0)">
+                                <TextBlock Text="{Binding ReadingSizeText}" Foreground="{StaticResource Text}" FontSize="12.5" />
+                            </Button>
+                            <Button Style="{StaticResource FlatButton}" Command="{Binding TextBiggerCommand}" Padding="8,2"
+                                    ToolTip="Крупнее (Ctrl+=)">
+                                <TextBlock Text="A+" FontSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,4,0,12">
                         <ItemsControl ItemsSource="{Binding Views}" ItemTemplate="{StaticResource NavEntry}" />
@@ -355,7 +385,7 @@
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate>
-                                        <Border Background="{StaticResource Panel}" Padding="16,0,10,0" Height="34">
+                                        <Border Background="{StaticResource Panel}" Padding="16,0,10,0" Height="{DynamicResource RowHeight}">
                                             <DockPanel>
                                                 <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Padding="6,1" ToolTip="Новая задача с этим статусом"
                                                         Command="{Binding DataContext.NewIssueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -364,8 +394,8 @@
                                                 </Button>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <c:StatusGlyph Status="{Binding Name}" Margin="0,0,10,0" />
-                                                    <TextBlock Text="{Binding Name, Converter={StaticResource EnumName}}" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource Text}" />
-                                                    <TextBlock Text="{Binding ItemCount}" Foreground="{StaticResource Text3}" Margin="8,0,0,0" />
+                                                    <TextBlock Text="{Binding Name, Converter={StaticResource EnumName}}" FontWeight="SemiBold" FontSize="{DynamicResource RowTitleSize}" Foreground="{StaticResource Text}" />
+                                                    <TextBlock Text="{Binding ItemCount}" FontSize="{DynamicResource RowTitleSize}" Foreground="{StaticResource Text3}" Margin="8,0,0,0" />
                                                 </StackPanel>
                                             </DockPanel>
                                         </Border>

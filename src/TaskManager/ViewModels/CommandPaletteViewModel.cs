@@ -188,7 +188,8 @@ public sealed partial class CommandPaletteViewModel(MainViewModel main) : Observ
         foreach (var k in main.KbNav)
             yield return new PaletteItem { Title = $"Перейти: {k.Title}", Hint = "база данных", Glyph = "🗂", Run = () => main.SelectedNav = k };
         yield return new PaletteItem { Title = "Добавить папку в базу данных…", Glyph = "🗂", Run = () => ViewActions.GetValueOrDefault("add-kb")?.Invoke() };
-        yield return new PaletteItem { Title = main.IsBoard ? "Показать списком" : "Показать канбан", Shortcut = "Ctrl+B", Run = () => main.IsBoard = !main.IsBoard };
+        yield return new PaletteItem { Title = "Показать список", Shortcut = "Ctrl+B", Run = () => main.ShowTasks(false) };
+        yield return new PaletteItem { Title = "Показать канбан", Shortcut = "Ctrl+B", Run = () => main.ShowTasks(true) };
         yield return new PaletteItem { Title = main.HideClosed ? "Показать завершённые" : "Скрыть завершённые", Run = () => main.HideClosed = !main.HideClosed };
         foreach (var v in main.Views)
             yield return new PaletteItem { Title = $"Перейти: {v.Title}", Run = () => main.SelectedNav = v };

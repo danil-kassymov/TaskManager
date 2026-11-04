@@ -71,8 +71,8 @@ public sealed partial class MainViewModel : ObservableObject
         _sortMode = S.Settings.Sort;
         _hideClosed = S.Settings.HideClosed;
         Views.Add(new NavItem(NavKind.Active, "Активные"));
-        Views.Add(new NavItem(NavKind.All, "Все задачи"));
         Views.Add(new NavItem(NavKind.Backlog, "Бэклог"));
+        Views.Add(new NavItem(NavKind.All, "Все задачи"));
         Seed.EnsureInitialData(S);
         LoadReferenceData();
         SelectedNav = AllNav().FirstOrDefault(n => n.Token == S.Settings.Nav) ?? Views[0];
@@ -135,6 +135,21 @@ public sealed partial class MainViewModel : ObservableObject
         Sync(KbNav, S.Kb.Sources().Select(s => new NavItem(NavKind.KbSource, s.Name, s.Id) { IsGDrive = gdrive.Contains(s.Id) }));
         if (selected is not null && SelectedNav is { IsEntity: true })
             SelectedNav = AllNav().FirstOrDefault(n => n.Token == selected) ?? Views[0];
+        RefreshCounts();
+    }
+
+    /// <summary>Task counts shown in brackets on the task tabs (same statuses as the tab's list, ignoring filters).</summary>
+    void RefreshCounts()
+    {
+        foreach (var n in Views.Concat(ProjectNav).Concat(LabelNav))
+        {
+            n.Count = S.Issues.Query(new IssueQuery
+            {
+                ProjectId = n.Kind == NavKind.Project ? n.Id : null,
+                LabelId = n.Kind == NavKind.Label ? n.Id : null,
+                Statuses = VisibleStatuses(n.Kind),
+            }).Count;
+        }
     }
 
     static void Sync(ObservableCollection<NavItem> target, IEnumerable<NavItem> items)
@@ -178,9 +193,11 @@ public sealed partial class MainViewModel : ObservableObject
     public Project? CurrentProject =>
         SelectedNav is { Kind: NavKind.Project } n ? Projects.FirstOrDefault(p => p.Id == n.Id) : null;
 
-    IReadOnlyList<IssueStatus> VisibleStatuses()
+    IReadOnlyList<IssueStatus> VisibleStatuses() => VisibleStatuses(SelectedNav?.Kind);
+
+    IReadOnlyList<IssueStatus> VisibleStatuses(NavKind? kind)
     {
-        IssueStatus[] statuses = SelectedNav?.Kind switch
+        IssueStatus[] statuses = kind switch
         {
             NavKind.Active => [IssueStatus.Todo, IssueStatus.InProgress],
             NavKind.Backlog => [IssueStatus.Backlog],
@@ -221,6 +238,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         IssueCount = rows.Count;
         Header = SelectedNav.Title;
+        RefreshCounts();
     }
 
     partial void OnSelectedRowChanged(IssueRow? value)
@@ -260,6 +278,13 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    /// <summary>Show tasks as a list or a board; from the knowledge base this first returns to the last task tab.</summary>
+    public void ShowTasks(bool board)
+    {
+        if (IsKbMode) SelectedNav = _lastIssueNav ?? Views[0];
+        IsBoard = board;
+    }
+
     void ToggleView() => IsBoard = !IsBoard;
 
     [RelayCommand]
@@ -498,8 +523,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>From a knowledge base entry back to the issues view.</summary>
     public void OpenIssueFromKb(long issueId)
     {
-        if (IsKbMode) SelectedNav = _lastIssueNav ?? Views[1];
-        if (!Issues.Any(r => r.Id == issueId)) SelectedNav = Views[1]; // "Все задачи", so the row is visible
+        if (IsKbMode) SelectedNav = _lastIssueNav ?? Views[2];
+        if (!Issues.Any(r => r.Id == issueId)) SelectedNav = Views[2]; // "Все задачи", so the row is visible
         OpenIssue(issueId);
     }
 

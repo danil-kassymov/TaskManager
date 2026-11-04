@@ -30,6 +30,7 @@ public partial class MainWindow : Window
         RestoreLayout(vm.S.Settings);
 
         vm.PropertyChanged += Vm_PropertyChanged;
+        Loaded += (_, _) => UpdateDetailLayout();
         vm.FocusRequested += OnFocusRequested;
         vm.ErrorRaised += (title, message) => Dialogs.Info(this, title, message);
         vm.Palette.PropertyChanged += (_, e) =>
@@ -93,7 +94,7 @@ public partial class MainWindow : Window
             s.Top = bounds.Top;
         }
         s.SidebarWidth = SidebarColumn.ActualWidth;
-        if (_vm.Detail is not null) s.ListWidth = MainColumn.ActualWidth;
+        if (_detailShown) s.ListWidth = MainColumn.ActualWidth;
     }
 
     [DllImport("dwmapi.dll")]
@@ -113,8 +114,9 @@ public partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(MainViewModel.Detail):
-                var open = _vm.Detail is not null;
-                LayoutDetail(_vm.Detail is not null);
+            case nameof(MainViewModel.IsBoard):
+            case nameof(MainViewModel.IsKbMode):
+                UpdateDetailLayout();
                 break;
             case nameof(MainViewModel.SelectedRow):
                 if (_vm.SelectedRow is { } row && !_vm.IsBoard) IssueList.ScrollIntoView(row);
@@ -123,6 +125,15 @@ public partial class MainWindow : Window
     }
 
     bool _detailShown;
+
+    /// <summary>In list mode the detail pane is always there (with a hint when nothing is selected); on the board it appears with a selection.</summary>
+    void UpdateDetailLayout()
+    {
+        var open = !_vm.IsKbMode && (_vm.Detail is not null || !_vm.IsBoard);
+        LayoutDetail(open);
+        DetailSplitter.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        DetailPlaceholder.Visibility = open && _vm.Detail is null ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     /// <summary>With an issue open the list becomes a narrow column and the issue gets the rest of the window.</summary>
     void LayoutDetail(bool open)

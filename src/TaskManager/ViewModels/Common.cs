@@ -114,6 +114,11 @@ public sealed partial class NavItem(NavKind kind, string title, long id = 0, str
     /// <summary>Knowledge base source connected to Google Drive.</summary>
     [ObservableProperty] private bool _isGDrive;
 
+    /// <summary>Number of tasks behind this tab (null for tabs without a count, e.g. knowledge base sources).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(Display))] private int? _count;
+    public string Display => Count is { } n ? $"{Title} ({n})" : Title;
+    partial void OnTitleChanged(string value) => OnPropertyChanged(nameof(Display));
+
     public string Token => $"{Kind}:{Id}";
     public bool IsEntity => Kind is NavKind.Project or NavKind.Label or NavKind.KbSource;
 }
